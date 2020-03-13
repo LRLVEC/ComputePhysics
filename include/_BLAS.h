@@ -33,13 +33,13 @@ namespace BLAS
 		Type type;
 
 		vec() :data(nullptr), dim(0), type(Type::Native) {}
-		vec(unsigned int _length)
+		vec(unsigned int _length, bool _clear = true)
 			:
 			data((double*)::malloc(_length * sizeof(double))),
 			dim(_length),
 			type(Type::Native)
 		{
-			memset(data, 0, _length * sizeof(double));
+			if (_clear)memset(data, 0, _length * sizeof(double));
 		}
 		vec(vec const& a)
 			:
@@ -49,6 +49,24 @@ namespace BLAS
 		{
 			if (dim)
 				::memcpy(data, a.data, dim * sizeof(double));
+		}
+		vec(vec&& a) :data(nullptr), dim(0), type(Type::Native)
+		{
+			if (a.type == Type::Native)
+			{
+				data = a.data;
+				dim = a.dim;
+				a.data = nullptr;
+				a.dim = 0;
+			}
+			else
+			{
+				if (a.dim)
+				{
+					data = (double*)::malloc(a.dim * sizeof(double));
+					dim = a.dim;
+				}
+			}
 		}
 		vec(double* _data, unsigned int _length, Type _type) :data(_data), dim(_length), type(_type) {}
 		vec(std::initializer_list<double>const& a)
@@ -68,6 +86,21 @@ namespace BLAS
 		template<class T>inline double& operator[](T a)
 		{
 			return data[a];
+		}
+		//moveTo
+		vec& moveTo(vec& a)
+		{
+			if (type == Type::Native)
+			{
+				a.~vec();
+				a.data = data;
+				a.dim = dim;
+				a.type = type;
+				data = nullptr;
+				dim = 0;
+			}
+			else a = *this;
+			return a;
 		}
 		//= += -= *= /=
 		vec& operator =(vec const& a)
@@ -280,6 +313,9 @@ namespace BLAS
 			}
 			else return 0;
 		}
+		//non-in-situ mult mat
+		vec operator()(mat const& a)const;
+
 		//norm
 		double norm1()const
 		{
@@ -375,6 +411,27 @@ namespace BLAS
 		{
 			if (data)
 				::memcpy(data, a.data, a.width * sizeof(double) * a.height);
+		}
+		mat(mat&& a) :data(nullptr), width(0), height(0), type(Type::Native), matType(MatType::NormalMat)
+		{
+			if (a.data)
+			{
+				if (a.type == Type::Native)
+				{
+					data = a.data;
+					width = a.width;
+					height = a.height;
+					matType = a.matType;
+					a.data = nullptr;
+					a.width = a.height = 0;
+				}
+				else
+				{
+					data = (double*)::malloc(a.width * sizeof(double) * a.height);
+					width = a.width;
+					height = a.height;
+				}
+			}
 		}
 		mat(double* _data, unsigned int _width, unsigned int _height, Type _type, MatType _matType)
 			:
@@ -622,6 +679,80 @@ namespace BLAS
 			}
 			return mat();
 		}
+		mat operator-(double a)const
+		{
+			if (data)
+			{
+				double* d((double*)::malloc(width * sizeof(double) * height));
+				for (unsigned int c0(0); c0 < height; ++c0)
+					for (unsigned int c1(0); c1 < width; ++c1)
+					{
+						unsigned int id(c0 * width + c1);
+						d[id] = data[id] - a;
+					}
+				return mat(d, width, height, Type::Native, MatType::NormalMat);
+			}
+			return mat();
+		}
+		mat operator*(double a)const
+		{
+			if (data)
+			{
+				double* d((double*)::malloc(width * sizeof(double) * height));
+				for (unsigned int c0(0); c0 < height; ++c0)
+					for (unsigned int c1(0); c1 < width; ++c1)
+					{
+						unsigned int id(c0 * width + c1);
+						d[id] = data[id] * a;
+					}
+				return mat(d, width, height, Type::Native, MatType::NormalMat);
+			}
+			return mat();
+		}
+		mat operator/(double a)const
+		{
+			if (data)
+			{
+				double* d((double*)::malloc(width * sizeof(double) * height));
+				for (unsigned int c0(0); c0 < height; ++c0)
+					for (unsigned int c1(0); c1 < width; ++c1)
+					{
+						unsigned int id(c0 * width + c1);
+						d[id] = data[id] / a;
+					}
+				return mat(d, width, height, Type::Native, MatType::NormalMat);
+			}
+			return mat();
+		}
+		//non-in-situ mult vec
+		vec operator()(vec const& a)const
+		{
+			unsigned int minDim(width > a.dim ? a.dim : width);
+			if (minDim && height)
+			{
+				vec r(height);
+				for (unsigned int c0(0); c0 < minDim; ++c0)
+					for (unsigned int c1(0); c1 < height; ++c1)
+						r.data[c1] += a.data[c0] * data[c1 * width + c0];
+				return r;
+			}
+			return vec();
+		}
+		//non-in-situ mult mat
+		mat operator()(mat const& a)const
+		{
+			if (height && a.width)
+			{
+				unsigned int minDim(width > a.height ? a.height : width);
+				mat r(a.width, height);
+				for (unsigned int c0(0); c0 < height; ++c0)
+					for (unsigned int c1(0); c1 < minDim; ++c1)
+						for (unsigned int c2(0); c2 < a.width; ++c2)
+							r.data[c0 * a.width + c2] += data[c0 * width + c1] * a.data[c1 * a.width + c2];
+				return r;
+			}
+			return mat();
+		}
 
 		void print()const
 		{
@@ -654,4 +785,19 @@ namespace BLAS
 				type == Type::Native ? "Native" : "Parasitic", str);
 		}
 	};
+
+	//non-in-situ mult mat
+	vec vec::operator()(mat const& a)const
+	{
+		unsigned int minDim(a.height > dim ? dim : a.height);
+		if (minDim)
+		{
+			vec r(a.width);
+			for (unsigned int c0(0); c0 < minDim; ++c0)
+				for (unsigned int c1(0); c1 < a.width; ++c1)
+					r.data[c1] += data[c0] * a.data[c0 * a.width + c1];
+			return r;
+		}
+		return vec();
+	}
 }
