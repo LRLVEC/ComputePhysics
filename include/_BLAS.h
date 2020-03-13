@@ -4,6 +4,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <cstdio>
+#include <immintrin.h>
 
 namespace BLAS
 {
@@ -745,10 +746,29 @@ namespace BLAS
 			{
 				unsigned int minDim(width > a.height ? a.height : width);
 				mat r(a.width, height);
-				for (unsigned int c0(0); c0 < height; ++c0)
+				/*for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < minDim; ++c1)
 						for (unsigned int c2(0); c2 < a.width; ++c2)
-							r.data[c0 * a.width + c2] += data[c0 * width + c1] * a.data[c1 * a.width + c2];
+							r.data[c0 * a.width + c2] += data[c0 * width + c1] * a.data[c1 * a.width + c2];*/
+
+				__m256d* aData((__m256d*)a.data);
+				__m256d* rData((__m256d*)r.data);
+				double* tempData(data);
+				double* tempData1(data);
+				unsigned int aWidth4(a.width / 4);
+				for (unsigned int c0(0); c0 < height; c0 += 4)
+					for (unsigned int c1(0); c1 < aWidth4; c1 += 1)
+					{
+						__m256d ans = { 0,0,0,0 };
+						for (unsigned int c2(0); c2 < minDim; ++c2)
+						{
+							//__m256d t = _mm256_i32gather_pd(tempData, offset, 8);
+							double s(a.data[c0 * width + c2]);
+							__m256d tp = { s,s,s,s };
+							ans = _mm256_fmadd_pd(tp, aData[aWidth4 * c2 + c1], ans);
+						}
+						rData[c0 * aWidth4 + c1] = ans;
+					}
 				return r;
 			}
 			return mat();

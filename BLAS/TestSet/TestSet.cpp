@@ -28,7 +28,6 @@ int main()
 	mat tc({ {1,2},{3,4} });
 	tb(ta).print();
 	ta(tb).print();
-	tb(tc).print();
 
 	vec vecA(128 * 128);
 	vec vecB(128 * 128);
