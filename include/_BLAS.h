@@ -754,30 +754,32 @@ namespace BLAS
 				__m256d* aData((__m256d*)a.data);
 				__m256d* rData((__m256d*)r.data);
 				unsigned int aWidth4(a.width / 4);
+				constexpr unsigned int warp = 16;
 				for (unsigned int c0(0); c0 < height; c0 += 2)
-					for (unsigned int c1(0); c1 < aWidth4; c1 += 4)
+					for (unsigned int c1(0); c1 < aWidth4; c1 += warp)
 					{
-						__m256d ans[2][4] = { 0 };
+						__m256d ans0[warp] = { 0 };
+						__m256d ans1[warp] = { 0 };
 						for (unsigned int c2(0); c2 < minDim; ++c2)
 						{
 							//__m256d t = _mm256_i32gather_pd(tempData, offset, 8);
-							double s0(a.data[c0 * width + c2]);
-							double s1(a.data[(c0 + 1) * width + c2]);
-							__m256d tp0 = { s0,s0,s0,s0 };
-							__m256d tp1 = { s1,s1,s1,s1 };
+							double s = a.data[c0 * width + c2];
+							__m256d tp0 = { s,s,s,s };
+							s = a.data[(c0 + 1) * width + c2];
+							__m256d tp1 = { s,s,s,s };
 #pragma unroll(4)
-							for (unsigned int c3(0); c3 < 4; ++c3)
+							for (unsigned int c3(0); c3 < warp; ++c3)
 							{
 								__m256d b = aData[aWidth4 * c2 + c1 + c3];
-								ans[0][c3] = _mm256_fmadd_pd(tp0, b, ans[0][c3]);
-								ans[1][c3] = _mm256_fmadd_pd(tp1, b, ans[1][c3]);
+								ans0[c3] = _mm256_fmadd_pd(tp0, b, ans0[c3]);
+								ans1[c3] = _mm256_fmadd_pd(tp1, b, ans1[c3]);
 							}
 						}
 #pragma unroll(4)
-						for (unsigned int c3(0); c3 < 4; ++c3)
+						for (unsigned int c3(0); c3 < warp; ++c3)
 						{
-							rData[c0 * aWidth4 + c1 + c3] = ans[0][c3];
-							rData[(c0 + 1) * aWidth4 + c1 + c3] = ans[1][c3];
+							rData[c0 * aWidth4 + c1 + c3] = ans0[c3];
+							rData[(c0 + 1) * aWidth4 + c1 + c3] = ans1[c3];
 						}
 					}
 				return r;
