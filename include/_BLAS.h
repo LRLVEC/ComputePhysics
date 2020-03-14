@@ -1,5 +1,6 @@
 #pragma once
 #include <cmath>
+#include <malloc.h>
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
@@ -15,6 +16,7 @@ namespace BLAS
 	{
 		Native = 0,
 		Parasitic = 1,
+		Non32Aligened = 2,
 	};
 	enum class MatType
 	{
@@ -26,6 +28,59 @@ namespace BLAS
 		BandMat,
 	};
 
+	inline unsigned int ceiling4(unsigned int length)
+	{
+		return (((length - 1) >> 2) + 1) << 2;
+	}
+	inline unsigned long long ceiling4(unsigned int width, unsigned int height)
+	{
+		return ((((unsigned long long(width) - 1) >> 2) + 1) << 2)* height;
+	}
+	inline size_t ceiling256dSize(unsigned int length)
+	{
+		return (((size_t(length) - 1) >> 2) + 1) << 5;
+	}
+	inline size_t ceiling256dSize(unsigned int width, unsigned int height)
+	{
+		return ((((size_t(width) - 1) >> 2) + 1) << 5)* height;
+	}
+	inline double* malloc64d(unsigned int length)
+	{
+		return (double*)_mm_malloc(length * sizeof(double), 32);
+	}
+	inline double* malloc256d(unsigned int length)
+	{
+		return (double*)_mm_malloc(ceiling256dSize(length), 32);
+	}
+	inline double* malloc256d(unsigned int width, unsigned int height)
+	{
+		return (double*)_mm_malloc(ceiling256dSize(width) * height, 32);
+	}
+	inline void* memcpy64d(void* dst, void const* src, unsigned int length)
+	{
+		return ::memcpy(dst, src, length * sizeof(double));
+	}
+	inline void* memcpy256d(void* dst, void const* src, unsigned int length)
+	{
+		return ::memcpy(dst, src, ceiling256dSize(length));
+	}
+	inline void* memcpy256d(void* dst, void const* src, unsigned int width, unsigned int height)
+	{
+		return ::memcpy(dst, src, ceiling256dSize(width, height));
+	}
+	inline void* memset64d(void* dst, int val, unsigned int length)
+	{
+		return ::memset(dst, val, length * sizeof(double));
+	}
+	inline void* memset256d(void* dst, int val, unsigned int length)
+	{
+		return ::memset(dst, val, ceiling256dSize(length));
+	}
+	inline void* memset256d(void* dst, int val, unsigned int width, unsigned int height)
+	{
+		return ::memset(dst, val, ceiling256dSize(width, height));
+	}
+
 	struct mat;
 	struct vec
 	{
@@ -36,20 +91,19 @@ namespace BLAS
 		vec() :data(nullptr), dim(0), type(Type::Native) {}
 		vec(unsigned int _length, bool _clear = true)
 			:
-			data((double*)::malloc(_length * sizeof(double))),
+			data(_length ? malloc256d(_length) : nullptr),
 			dim(_length),
 			type(Type::Native)
 		{
-			if (_clear)memset(data, 0, _length * sizeof(double));
+			if (_clear && data)memset256d(data, 0, _length);
 		}
 		vec(vec const& a)
 			:
-			data(a.dim ? (double*)::malloc(a.dim * sizeof(double)) : nullptr),
+			data(a.dim ? malloc256d(a.dim) : nullptr),
 			dim(a.dim),
 			type(Type::Native)
 		{
-			if (dim)
-				::memcpy(data, a.data, dim * sizeof(double));
+			if (dim)memcpy64d(data, a.data, dim);
 		}
 		vec(vec&& a) :data(nullptr), dim(0), type(Type::Native)
 		{
@@ -64,7 +118,7 @@ namespace BLAS
 			{
 				if (a.dim)
 				{
-					data = (double*)::malloc(a.dim * sizeof(double));
+					data = malloc256d(a.dim);
 					dim = a.dim;
 				}
 			}
@@ -72,15 +126,15 @@ namespace BLAS
 		vec(double* _data, unsigned int _length, Type _type) :data(_data), dim(_length), type(_type) {}
 		vec(std::initializer_list<double>const& a)
 			:
-			data(a.size() ? (double*)::malloc(a.size() * sizeof(double)) : nullptr),
+			data(a.size() ? malloc256d(a.size()) : nullptr),
 			dim(a.size()),
 			type(Type::Native)
 		{
-			if (dim)::memcpy(data, a.begin(), dim * sizeof(double));
+			if (dim)memcpy64d(data, a.begin(), dim);
 		}
 		~vec()
 		{
-			if (type == Type::Native)::free(data);
+			if (type == Type::Native)_mm_free(data);
 			data = nullptr;
 			dim = 0;
 		}
@@ -108,7 +162,7 @@ namespace BLAS
 		{
 			if (a.type == Type::Native)
 			{
-				::free(data);
+				_mm_free(data);
 				data = a.data;
 				dim = a.dim;
 				a.data = nullptr;
@@ -117,16 +171,16 @@ namespace BLAS
 			else
 			{
 				if (dim >= a.dim)
-					::memcpy(data, a.data, a.dim * sizeof(double));
+					memcpy256d(data, a.data, a.dim);
 				else
 				{
 					if (type == Type::Native)
 					{
-						::free(data);
-						data = (double*)::malloc(a.dim * sizeof(double));
+						_mm_free(data);
+						data = malloc256d(a.dim);
 						dim = a.dim;
 					}
-					::memcpy(data, a.data, dim * sizeof(double));
+					memcpy64d(data, a.data, dim);
 				}
 			}
 		}
@@ -135,16 +189,16 @@ namespace BLAS
 			if (a.dim)
 			{
 				if (dim >= a.dim)
-					::memcpy(data, a.data, a.dim * sizeof(double));
+					memcpy64d(data, a.data, a.dim);
 				else
 				{
 					if (type == Type::Native)
 					{
-						::free(data);
-						data = (double*)::malloc(a.dim * sizeof(double));
+						_mm_free(data);
+						data = malloc256d(a.dim);
 						dim = a.dim;
 					}
-					::memcpy(data, a.data, dim * sizeof(double));
+					memcpy64d(data, a.data, dim);
 				}
 			}
 			return *this;
@@ -236,7 +290,7 @@ namespace BLAS
 			if (a.dim && dim)
 			{
 				unsigned int l(dim > a.dim ? a.dim : dim);
-				double* d((double*)::malloc(l * sizeof(double)));
+				double* d(malloc256d(l));
 				for (unsigned int c0(0); c0 < l; ++c0)
 					d[c0] = data[c0] + a.data[c0];
 				return vec(d, l, Type::Native);
@@ -248,7 +302,7 @@ namespace BLAS
 			if (a.dim && dim)
 			{
 				unsigned int l(dim > a.dim ? a.dim : dim);
-				double* d((double*)::malloc(l * sizeof(double)));
+				double* d(malloc256d(l));
 				for (unsigned int c0(0); c0 < l; ++c0)
 					d[c0] = data[c0] - a.data[c0];
 				return vec(d, l, Type::Native);
@@ -260,7 +314,7 @@ namespace BLAS
 			if (a.dim && dim)
 			{
 				unsigned int l(dim > a.dim ? a.dim : dim);
-				double* d((double*)::malloc(l * sizeof(double)));
+				double* d(malloc256d(l));
 				for (unsigned int c0(0); c0 < l; ++c0)
 					d[c0] = data[c0] * a.data[c0];
 				return vec(d, l, Type::Native);
@@ -272,7 +326,7 @@ namespace BLAS
 			if (a.dim && dim)
 			{
 				unsigned int l(dim > a.dim ? a.dim : dim);
-				double* d((double*)::malloc(l * sizeof(double)));
+				double* d(malloc256d(l));
 				for (unsigned int c0(0); c0 < l; ++c0)
 					d[c0] = data[c0] / a.data[c0];
 				return vec(d, l, Type::Native);
@@ -284,7 +338,7 @@ namespace BLAS
 			if (dim)
 			{
 				unsigned int l(dim);
-				double* d((double*)::malloc(l * sizeof(double)));
+				double* d(malloc256d(l));
 				for (unsigned int c0(0); c0 < l; ++c0)
 					d[c0] = data[c0] + a;
 				return vec(d, l, Type::Native);
@@ -296,7 +350,7 @@ namespace BLAS
 			if (dim)
 			{
 				unsigned int l(dim);
-				double* d((double*)::malloc(l * sizeof(double)));
+				double* d(malloc256d(l));
 				for (unsigned int c0(0); c0 < l; ++c0)
 					d[c0] = data[c0] - a;
 				return vec(d, l, Type::Native);
@@ -308,7 +362,7 @@ namespace BLAS
 			if (dim)
 			{
 				unsigned int l(dim);
-				double* d((double*)::malloc(l * sizeof(double)));
+				double* d(malloc256d(l));
 				for (unsigned int c0(0); c0 < l; ++c0)
 					d[c0] = data[c0] * a;
 				return vec(d, l, Type::Native);
@@ -320,7 +374,7 @@ namespace BLAS
 			if (dim)
 			{
 				unsigned int l(dim);
-				double* d((double*)::malloc(l * sizeof(double)));
+				double* d(malloc256d(l));
 				for (unsigned int c0(0); c0 < l; ++c0)
 					d[c0] = data[c0] / a;
 				return vec(d, l, Type::Native);
@@ -413,31 +467,35 @@ namespace BLAS
 		double* data;
 		unsigned int width;
 		unsigned int height;
+		unsigned int width4d;
 		Type type;
 		MatType matType;
 
-		mat() :data(nullptr), width(0), height(0), type(Type::Native), matType(MatType::NormalMat) {}
+		mat() :data(nullptr), width(0), height(0), width4d(ceiling4(width)),
+			type(Type::Native), matType(MatType::NormalMat) {}
 		mat(unsigned int _width, unsigned int _height, bool _clear = true)
 			:
-			data((_width&& _height) ? (double*)::malloc(_width * sizeof(double) * _height) : nullptr),
+			data((_width&& _height) ? malloc256d(_width, _height) : nullptr),
 			width(data ? _width : 0),
 			height(data ? _height : 0),
+			width4d(data ? ceiling4(_width) : 0),
 			type(Type::Native),
 			matType(MatType::NormalMat)
 		{
 			if (_clear && data)
-				memset(data, 0, width * sizeof(double) * height);
+				memset256d(data, 0, width, height);
 		}
 		mat(mat const& a)
 			:
-			data((a.width&& a.height) ? (double*)::malloc(a.width * sizeof(double) * a.height) : nullptr),
+			data((a.width&& a.height) ? malloc256d(a.width, a.height) : nullptr),
 			width(a.width),
 			height(a.height),
+			width4d(ceiling4(a.width)),
 			type(Type::Native),
 			matType(a.matType)
 		{
 			if (data)
-				::memcpy(data, a.data, a.width * sizeof(double) * a.height);
+				memcpy256d(data, a.data, width, height);
 		}
 		mat(mat&& a) :data(nullptr), width(0), height(0), type(Type::Native), matType(MatType::NormalMat)
 		{
@@ -454,16 +512,18 @@ namespace BLAS
 				}
 				else
 				{
-					data = (double*)::malloc(a.width * sizeof(double) * a.height);
+					data = malloc256d(a.width, a.height);
 					width = a.width;
 					height = a.height;
-					memcpy(data, a.data, a.width * sizeof(double) * a.height);
+					memcpy256d(data, a.data, a.width, a.height);
 				}
+				width4d = ceiling4(width);
 			}
 		}
 		mat(double* _data, unsigned int _width, unsigned int _height, Type _type, MatType _matType)
 			:
-			data(_data), width(_width), height(_height), type(_type), matType(_matType)
+			data(_data), width(_width), height(_height), width4d(ceiling4(_width)),
+			type(_type), matType(_matType)
 		{
 		}
 		mat(std::initializer_list<std::initializer_list<double>>const& a)
@@ -479,22 +539,23 @@ namespace BLAS
 						w = (a.begin() + c0)->size();
 				if (w)
 				{
-					size_t s(w * sizeof(double) * h);
-					data = (double*)::malloc(s);
-					memset(data, 0, s);
+					unsigned long long l(ceiling4(w, h));
+					data = malloc64d(l);
+					memset64d(data, 0, l);
 					width = w;
 					height = h;
+					width4d = ceiling4(width);
 					type = Type::Native;
 					matType = MatType::NormalMat;
 					for (unsigned int c0(0); c0 < h; ++c0)
-						memcpy(data + w * c0, (a.begin() + c0)->begin(),
-						(a.begin() + c0)->size() * sizeof(double));
+						memcpy64d(data + width4d * c0, (a.begin() + c0)->begin(),
+						(a.begin() + c0)->size());
 				}
 			}
 		}
 		~mat()
 		{
-			if (type == Type::Native)::free(data);
+			if (type == Type::Native)_mm_free(data);
 			data = nullptr;
 			width = height = 0;
 		}
@@ -504,7 +565,7 @@ namespace BLAS
 		}
 		template<class T, class R>inline double& operator() (T a, R b)
 		{
-			return data[a * width + b];
+			return data[a * width4d + b];
 		}
 		//= += -= *= /=
 		mat& operator =(mat&& a)
@@ -515,24 +576,26 @@ namespace BLAS
 				{
 					if (a.type == Type::Native)
 					{
-						::free(data);
+						_mm_free(data);
 						data = a.data;
 						width = a.width;
 						height = a.height;
+						width4d = a.width4d;
 						matType = a.matType;
 						a.data = nullptr;
-						a.width = a.height = 0;
+						a.width = a.height = a.width4d = 0;
 					}
 					else
 					{
 						if (unsigned long long(a.width) * a.height == unsigned long long(width) * height)
 						{
-							::free(data);
-							data = (double*)::malloc(a.width * sizeof(double) * a.height);
+							_mm_free(data);
+							data = malloc256d(a.width, a.height);
 						}
 						width = a.width;
 						height = a.height;
-						memcpy(data, a.data, a.width * sizeof(double) * a.height);
+						width4d = a.width4d;
+						memcpy256d(data, a.data, width, height);
 					}
 				}
 				else
@@ -540,7 +603,7 @@ namespace BLAS
 					unsigned int minWidth(width <= a.width ? width : a.width);
 					unsigned int minHeight(height <= a.height ? height : a.height);
 					for (unsigned int c0(0); c0 < minHeight; ++c0)
-						::memcpy(data + width * c0, a.data + a.width * c0, minWidth * sizeof(double));
+						memcpy64d(data + width4d * c0, a.data + a.width4d * c0, minWidth);
 				}
 			}
 			return *this;
@@ -549,25 +612,27 @@ namespace BLAS
 		{
 			if (a.data)
 			{
-				if (unsigned long long(a.width) * a.height == unsigned long long(width) * height)
-					::memcpy(data, a.data, width * sizeof(double) * height);
+				size_t s(ceiling256dSize(width, height));
+				size_t sa(ceiling256dSize(a.width, a.height));
+				if (sa == s)memcpy(data, a.data, s);
 				else
 				{
 					if (type == Type::Native)
 					{
-						::free(data);
-						data = (double*)::malloc(a.width * sizeof(double) * a.height);
+						_mm_free(data);
+						data = malloc256d(a.width, a.height);
 						width = a.width;
 						height = a.height;
+						width4d = a.width4d;
 						matType = a.matType;
-						::memcpy(data, a.data, width * sizeof(double) * height);
+						memcpy(data, a.data, sa);
 					}
 					else
 					{
 						unsigned int minWidth(width <= a.width ? width : a.width);
 						unsigned int minHeight(height <= a.height ? height : a.height);
 						for (unsigned int c0(0); c0 < minHeight; ++c0)
-							::memcpy(data + width * c0, a.data + a.width * c0, minWidth * sizeof(double));
+							memcpy64d(data + width4d * c0, a.data + a.width4d * c0, minWidth);
 					}
 				}
 			}
@@ -581,7 +646,7 @@ namespace BLAS
 				unsigned int minH(a.height > height ? height : a.height);
 				for (unsigned int c0(0); c0 < minH; ++c0)
 					for (unsigned int c1(0); c1 < minW; ++c1)
-						data[c0 * width + c1] += a.data[c0 * a.width + c1];
+						data[c0 * width4d + c1] += a.data[c0 * a.width4d + c1];
 			}
 			return *this;
 		}
@@ -593,7 +658,7 @@ namespace BLAS
 				unsigned int minH(a.height > height ? height : a.height);
 				for (unsigned int c0(0); c0 < minH; ++c0)
 					for (unsigned int c1(0); c1 < minW; ++c1)
-						data[c0 * width + c1] -= a.data[c0 * a.width + c1];
+						data[c0 * width4d + c1] -= a.data[c0 * a.width4d + c1];
 			}
 			return *this;
 		}
@@ -605,7 +670,7 @@ namespace BLAS
 				unsigned int minH(a.height > height ? height : a.height);
 				for (unsigned int c0(0); c0 < minH; ++c0)
 					for (unsigned int c1(0); c1 < minW; ++c1)
-						data[c0 * width + c1] *= a.data[c0 * a.width + c1];
+						data[c0 * width4d + c1] *= a.data[c0 * a.width4d + c1];
 			}
 			return *this;
 		}
@@ -617,7 +682,7 @@ namespace BLAS
 				unsigned int minH(a.height > height ? height : a.height);
 				for (unsigned int c0(0); c0 < minH; ++c0)
 					for (unsigned int c1(0); c1 < minW; ++c1)
-						data[c0 * width + c1] /= a.data[c0 * a.width + c1];
+						data[c0 * width4d + c1] /= a.data[c0 * a.width4d + c1];
 			}
 			return *this;
 		}
@@ -627,7 +692,7 @@ namespace BLAS
 			{
 				for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < width; ++c1)
-						data[c0 * width + c1] = a;
+						data[c0 * width4d + c1] = a;
 			}
 			return *this;
 		}
@@ -637,7 +702,7 @@ namespace BLAS
 			{
 				for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < width; ++c1)
-						data[c0 * width + c1] += a;
+						data[c0 * width4d + c1] += a;
 			}
 			return *this;
 		}
@@ -647,7 +712,7 @@ namespace BLAS
 			{
 				for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < width; ++c1)
-						data[c0 * width + c1] -= a;
+						data[c0 * width4d + c1] -= a;
 			}
 			return *this;
 		}
@@ -657,7 +722,7 @@ namespace BLAS
 			{
 				for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < width; ++c1)
-						data[c0 * width + c1] *= a;
+						data[c0 * width4d + c1] *= a;
 			}
 			return *this;
 		}
@@ -667,7 +732,7 @@ namespace BLAS
 			{
 				for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < width; ++c1)
-						data[c0 * width + c1] /= a;
+						data[c0 * width4d + c1] /= a;
 			}
 			return *this;
 		}
@@ -678,10 +743,11 @@ namespace BLAS
 			{
 				unsigned int minW(a.width > width ? width : a.width);
 				unsigned int minH(a.height > height ? height : a.height);
-				double* d((double*)::malloc(minW * sizeof(double) * minH));
+				unsigned int minW4d(ceiling4(minW));
+				double* d(malloc256d(minW, minH));
 				for (unsigned int c0(0); c0 < minH; ++c0)
 					for (unsigned int c1(0); c1 < minW; ++c1)
-						d[c0 * minW + c1] = data[c0 * width + c1] + a.data[c0 * a.width + c1];
+						d[c0 * minW4d + c1] = data[c0 * width4d + c1] + a.data[c0 * a.width4d + c1];
 				return mat(d, minW, minH, Type::Native, MatType::NormalMat);
 			}
 			return mat();
@@ -692,10 +758,11 @@ namespace BLAS
 			{
 				unsigned int minW(a.width > width ? width : a.width);
 				unsigned int minH(a.height > height ? height : a.height);
-				double* d((double*)::malloc(minW * sizeof(double) * minH));
+				unsigned int minW4d(ceiling4(minW));
+				double* d(malloc256d(minW, minH));
 				for (unsigned int c0(0); c0 < minH; ++c0)
 					for (unsigned int c1(0); c1 < minW; ++c1)
-						d[c0 * minW + c1] = data[c0 * width + c1] - a.data[c0 * a.width + c1];
+						d[c0 * minW4d + c1] = data[c0 * width4d + c1] - a.data[c0 * a.width4d + c1];
 				return mat(d, minW, minH, Type::Native, MatType::NormalMat);
 			}
 			return mat();
@@ -706,10 +773,11 @@ namespace BLAS
 			{
 				unsigned int minW(a.width > width ? width : a.width);
 				unsigned int minH(a.height > height ? height : a.height);
-				double* d((double*)::malloc(minW * sizeof(double) * minH));
+				unsigned int minW4d(ceiling4(minW));
+				double* d(malloc256d(minW, minH));
 				for (unsigned int c0(0); c0 < minH; ++c0)
 					for (unsigned int c1(0); c1 < minW; ++c1)
-						d[c0 * minW + c1] = data[c0 * width + c1] * a.data[c0 * a.width + c1];
+						d[c0 * minW4d + c1] = data[c0 * width4d + c1] * a.data[c0 * a.width4d + c1];
 				return mat(d, minW, minH, Type::Native, MatType::NormalMat);
 			}
 			return mat();
@@ -720,10 +788,11 @@ namespace BLAS
 			{
 				unsigned int minW(a.width > width ? width : a.width);
 				unsigned int minH(a.height > height ? height : a.height);
-				double* d((double*)::malloc(minW * sizeof(double) * minH));
+				unsigned int minW4d(ceiling4(minW));
+				double* d(malloc256d(minW, minH));
 				for (unsigned int c0(0); c0 < minH; ++c0)
 					for (unsigned int c1(0); c1 < minW; ++c1)
-						d[c0 * minW + c1] = data[c0 * width + c1] / a.data[c0 * a.width + c1];
+						d[c0 * minW4d + c1] = data[c0 * width4d + c1] / a.data[c0 * a.width4d + c1];
 				return mat(d, minW, minH, Type::Native, MatType::NormalMat);
 			}
 			return mat();
@@ -732,13 +801,11 @@ namespace BLAS
 		{
 			if (data)
 			{
-				double* d((double*)::malloc(width * sizeof(double) * height));
+				double* d(malloc256d(width, height));
+				memcpy256d(d, data, width, height);
 				for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < width; ++c1)
-					{
-						unsigned int id(c0 * width + c1);
-						d[id] = data[id] + a;
-					}
+						d[c0 * width4d + c1] += a;
 				return mat(d, width, height, Type::Native, MatType::NormalMat);
 			}
 			return mat();
@@ -747,13 +814,11 @@ namespace BLAS
 		{
 			if (data)
 			{
-				double* d((double*)::malloc(width * sizeof(double) * height));
+				double* d(malloc256d(width, height));
+				memcpy256d(d, data, width, height);
 				for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < width; ++c1)
-					{
-						unsigned int id(c0 * width + c1);
-						d[id] = data[id] - a;
-					}
+						d[c0 * width4d + c1] -= a;
 				return mat(d, width, height, Type::Native, MatType::NormalMat);
 			}
 			return mat();
@@ -762,13 +827,11 @@ namespace BLAS
 		{
 			if (data)
 			{
-				double* d((double*)::malloc(width * sizeof(double) * height));
+				double* d(malloc256d(width, height));
+				memcpy256d(d, data, width, height);
 				for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < width; ++c1)
-					{
-						unsigned int id(c0 * width + c1);
-						d[id] = data[id] * a;
-					}
+						d[c0 * width4d + c1] *= a;
 				return mat(d, width, height, Type::Native, MatType::NormalMat);
 			}
 			return mat();
@@ -777,13 +840,11 @@ namespace BLAS
 		{
 			if (data)
 			{
-				double* d((double*)::malloc(width * sizeof(double) * height));
+				double* d(malloc256d(width, height));
+				memcpy256d(d, data, width, height);
 				for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < width; ++c1)
-					{
-						unsigned int id(c0 * width + c1);
-						d[id] = data[id] / a;
-					}
+						d[c0 * width4d + c1] /= a;
 				return mat(d, width, height, Type::Native, MatType::NormalMat);
 			}
 			return mat();
@@ -792,12 +853,14 @@ namespace BLAS
 		vec operator()(vec const& a)const
 		{
 			unsigned int minDim(width > a.dim ? a.dim : width);
+			unsigned int minDim4d(ceiling4(minDim));
 			if (minDim && height)
 			{
 				vec r(height);
+
 				for (unsigned int c0(0); c0 < minDim; ++c0)
 					for (unsigned int c1(0); c1 < height; ++c1)
-						r.data[c1] += a.data[c0] * data[c1 * width + c0];
+						r.data[c1] += a.data[c0] * data[c1 * width4d + c0];
 				return r;
 			}
 			return vec();
@@ -812,28 +875,28 @@ namespace BLAS
 				/*for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < minDim; ++c1)
 						for (unsigned int c2(0); c2 < a.width; ++c2)
-							r.data[c0 * a.width + c2] += data[c0 * width + c1] * a.data[c1 * a.width + c2];*/
+							r.data[c0 * a.width + c2] += data[c0 * width4d + c1] * a.data[c1 * a.width + c2];*/
 
 				__m256d* aData((__m256d*)a.data);
 				__m256d* rData((__m256d*)r.data);
-				unsigned int aWidth4(a.width / 4);
+				unsigned int aWidth256d(a.width4d / 4);
 				constexpr unsigned int warp = 16;
 				for (unsigned int c0(0); c0 < height; c0 += 2)
-					for (unsigned int c1(0); c1 < aWidth4; c1 += warp)
+					for (unsigned int c1(0); c1 < aWidth256d; c1 += warp)
 					{
 						__m256d ans0[warp] = { 0 };
 						__m256d ans1[warp] = { 0 };
 						for (unsigned int c2(0); c2 < minDim; ++c2)
 						{
 							//__m256d t = _mm256_i32gather_pd(tempData, offset, 8);
-							double s = data[c0 * width + c2];
+							double s = data[c0 * width4d + c2];
 							__m256d tp0 = { s,s,s,s };
-							s = data[(c0 + 1) * width + c2];
+							s = data[(c0 + 1) * width4d + c2];
 							__m256d tp1 = { s,s,s,s };
 #pragma unroll(4)
 							for (unsigned int c3(0); c3 < warp; ++c3)
 							{
-								__m256d b = aData[aWidth4 * c2 + c1 + c3];
+								__m256d b = aData[aWidth256d * c2 + c1 + c3];
 								ans0[c3] = _mm256_fmadd_pd(tp0, b, ans0[c3]);
 								ans1[c3] = _mm256_fmadd_pd(tp1, b, ans1[c3]);
 							}
@@ -841,8 +904,8 @@ namespace BLAS
 #pragma unroll(4)
 						for (unsigned int c3(0); c3 < warp; ++c3)
 						{
-							rData[c0 * aWidth4 + c1 + c3] = ans0[c3];
-							rData[(c0 + 1) * aWidth4 + c1 + c3] = ans1[c3];
+							rData[c0 * aWidth256d + c1 + c3] = ans0[c3];
+							rData[(c0 + 1) * aWidth256d + c1 + c3] = ans1[c3];
 						}
 					}
 				return r;
@@ -857,9 +920,9 @@ namespace BLAS
 			{
 				for (unsigned int c0(0); c0 < height; ++c0)
 				{
-					::printf("\t[%.4f", data[width * c0]);
+					::printf("\t[%.4f", data[width4d * c0]);
 					for (unsigned int c1(1); c1 < width; ++c1)
-						::printf(", %.4f", data[width * c0 + c1]);
+						::printf(", %.4f", data[width4d * c0 + c1]);
 					::printf("]\n");
 				}
 			}
@@ -889,14 +952,14 @@ namespace BLAS
 				::fprintf(temp, "{\n");
 				for (unsigned int c0(0); c0 < height - 1; ++c0)
 				{
-					::fprintf(temp, "{%.8f", data[width * c0]);
+					::fprintf(temp, "{%.8f", data[width4d * c0]);
 					for (unsigned int c1(1); c1 < width; ++c1)
-						::fprintf(temp, ", %.8f", data[width * c0 + c1]);
+						::fprintf(temp, ", %.8f", data[width4d * c0 + c1]);
 					::fprintf(temp, "},\n");
 				}
-				::fprintf(temp, "{%.8f", data[width * (height - 1)]);
+				::fprintf(temp, "{%.8f", data[width4d * (height - 1)]);
 				for (unsigned int c1(1); c1 < width; ++c1)
-					::fprintf(temp, ", %.8f", data[width * (height - 1) + c1]);
+					::fprintf(temp, ", %.8f", data[width4d * (height - 1) + c1]);
 				::fprintf(temp, "}\n}");
 				::fclose(temp);
 			}
@@ -912,7 +975,7 @@ namespace BLAS
 			vec r(a.width);
 			for (unsigned int c0(0); c0 < minDim; ++c0)
 				for (unsigned int c1(0); c1 < a.width; ++c1)
-					r.data[c1] += data[c0] * a.data[c0 * a.width + c1];
+					r.data[c1] += data[c0] * a.data[c0 * a.width4d + c1];
 			return r;
 		}
 		return vec();

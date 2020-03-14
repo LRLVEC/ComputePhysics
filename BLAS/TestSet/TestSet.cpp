@@ -22,11 +22,11 @@ int main()
 
 	using namespace BLAS;
 
-	vec ta({ 1,2 });
-	mat tb({ {1,2},{3,4} });
-	mat tc({ {1,2},{3,4} });
-	tb(ta).print();
-	ta(tb).print();
+	//vec ta({ 1,2 });
+	//mat tb({ {1,2},{3,4} });
+	//mat tc({ {1,2},{3,4} });
+	//tb(ta).print();
+	//ta(tb).print();
 
 	vec vecA(128 * 128);
 	vec vecB(128 * 128);
@@ -119,16 +119,16 @@ int main()
 	timer.end();
 	timer.print("mat mult vec:");
 
-	/*timer.begin();
+	timer.begin();
 	mat matE(matA(matB));
 	timer.end();
-	timer.print("mat mult mat:");*/
+	timer.print("mat mult mat:");
 
 	randomMat(matC, mt, rd);
 	randomMat(matD, mt, rd);
 
 	timer.begin();
-	mat matE(matC(matD));
+	matE=matC(matD);
 	timer.end();
 	timer.print("mat mult mat:");
 
