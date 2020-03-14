@@ -2,23 +2,22 @@
 #include <_Time.h>
 #include <random>
 
-void randomVec(BLAS::vec& a, std::mt19937& mt, std::uniform_real_distribution<double>& rd)
+template<class T>void randomVec(BLAS::vec& a, std::mt19937& mt, T& rd)
 {
 	for (unsigned int c0(0); c0 < a.dim; ++c0)
 		a.data[c0] = rd(mt);
 }
-void randomMat(BLAS::mat& a, std::mt19937& mt, std::uniform_real_distribution<double>& rd)
+template<class T>void randomMat(BLAS::mat& a, std::mt19937& mt, T& rd)
 {
 	for (unsigned int c0(0); c0 < a.width * a.height; ++c0)
 		a.data[c0] = rd(mt);
 }
 
-
-
 int main()
 {
 	std::mt19937 mt(time(nullptr));
 	std::uniform_real_distribution<double> rd(0, 2);
+	std::uniform_int_distribution<unsigned int> rduint(1, 10);
 	Timer timer;
 
 	using namespace BLAS;
@@ -87,6 +86,8 @@ int main()
 
 	mat matA(1024, 1024, false);
 	mat matB(1024, 1024, false);
+	mat matC(3, 2, false);
+	mat matD(64, 3, false);
 	randomMat(matA, mt, rd);
 	randomMat(matB, mt, rd);
 
@@ -118,10 +119,22 @@ int main()
 	timer.end();
 	timer.print("mat mult vec:");
 
+	/*timer.begin();
+	mat matE(matA(matB));
+	timer.end();
+	timer.print("mat mult mat:");*/
+
+	randomMat(matC, mt, rd);
+	randomMat(matD, mt, rd);
+
 	timer.begin();
-	mat matC(matA(matB));
+	mat matE(matC(matD));
 	timer.end();
 	timer.print("mat mult mat:");
+
+	matC.printToTxt("./matC.txt");
+	matD.printToTxt("./matD.txt");
+	matE.printToTxt("./matE.txt");
 
 	//::printf("%f\n", a[2]);
 	//a += a;

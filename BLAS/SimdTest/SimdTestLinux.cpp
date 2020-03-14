@@ -19,7 +19,7 @@ void randomMat(double* a, unsigned int length, std::mt19937& mt, std::uniform_re
 void matMult(double* a, double* b, double* c, unsigned int widthA,
 	unsigned int heightA, unsigned int widthB, unsigned int heightB)
 {
-	__m256d* aData((__m256d*)a);
+	__m256d* aData((__m256d*)b);
 	__m256d* cData((__m256d*)c);
 	unsigned int widthA4(widthA / 4);
 	unsigned int minDim(widthA > heightB ? heightB : widthA);

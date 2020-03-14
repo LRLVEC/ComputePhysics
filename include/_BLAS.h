@@ -104,6 +104,32 @@ namespace BLAS
 			return a;
 		}
 		//= += -= *= /=
+		vec& operator =(vec&& a)
+		{
+			if (a.type == Type::Native)
+			{
+				::free(data);
+				data = a.data;
+				dim = a.dim;
+				a.data = nullptr;
+				a.dim = 0;
+			}
+			else
+			{
+				if (dim >= a.dim)
+					::memcpy(data, a.data, a.dim * sizeof(double));
+				else
+				{
+					if (type == Type::Native)
+					{
+						::free(data);
+						data = (double*)::malloc(a.dim * sizeof(double));
+						dim = a.dim;
+					}
+					::memcpy(data, a.data, dim * sizeof(double));
+				}
+			}
+		}
 		vec& operator =(vec const& a)
 		{
 			if (a.dim)
@@ -431,6 +457,7 @@ namespace BLAS
 					data = (double*)::malloc(a.width * sizeof(double) * a.height);
 					width = a.width;
 					height = a.height;
+					memcpy(data, a.data, a.width * sizeof(double) * a.height);
 				}
 			}
 		}
@@ -480,6 +507,44 @@ namespace BLAS
 			return data[a * width + b];
 		}
 		//= += -= *= /=
+		mat& operator =(mat&& a)
+		{
+			if (a.data)
+			{
+				if (type == Type::Native)
+				{
+					if (a.type == Type::Native)
+					{
+						::free(data);
+						data = a.data;
+						width = a.width;
+						height = a.height;
+						matType = a.matType;
+						a.data = nullptr;
+						a.width = a.height = 0;
+					}
+					else
+					{
+						if (unsigned long long(a.width) * a.height == unsigned long long(width) * height)
+						{
+							::free(data);
+							data = (double*)::malloc(a.width * sizeof(double) * a.height);
+						}
+						width = a.width;
+						height = a.height;
+						memcpy(data, a.data, a.width * sizeof(double) * a.height);
+					}
+				}
+				else
+				{
+					unsigned int minWidth(width <= a.width ? width : a.width);
+					unsigned int minHeight(height <= a.height ? height : a.height);
+					for (unsigned int c0(0); c0 < minHeight; ++c0)
+						::memcpy(data + width * c0, a.data + a.width * c0, minWidth * sizeof(double));
+				}
+			}
+			return *this;
+		}
 		mat& operator =(mat const& a)
 		{
 			if (a.data)
@@ -488,23 +553,21 @@ namespace BLAS
 					::memcpy(data, a.data, width * sizeof(double) * height);
 				else
 				{
-					if (width >= a.width && height >= a.height)
-						for (unsigned int c0(0); c0 < a.height; ++c0)
-							::memcpy(data + width * c0, a.data + a.width * c0, a.width * sizeof(double));
+					if (type == Type::Native)
+					{
+						::free(data);
+						data = (double*)::malloc(a.width * sizeof(double) * a.height);
+						width = a.width;
+						height = a.height;
+						matType = a.matType;
+						::memcpy(data, a.data, width * sizeof(double) * height);
+					}
 					else
 					{
-						if (type == Type::Native)
-						{
-							::free(data);
-							data = (double*)::malloc(a.width * sizeof(double) * a.height);
-							width = a.width;
-							height = a.height;
-							matType = a.matType;
-							::memcpy(data, a.data, width * sizeof(double) * height);
-						}
-						else
-							for (unsigned int c0(0); c0 < height; ++c0)
-								::memcpy(data + width * c0, a.data + a.width * c0, width * sizeof(double));
+						unsigned int minWidth(width <= a.width ? width : a.width);
+						unsigned int minHeight(height <= a.height ? height : a.height);
+						for (unsigned int c0(0); c0 < minHeight; ++c0)
+							::memcpy(data + width * c0, a.data + a.width * c0, minWidth * sizeof(double));
 					}
 				}
 			}
@@ -763,9 +826,9 @@ namespace BLAS
 						for (unsigned int c2(0); c2 < minDim; ++c2)
 						{
 							//__m256d t = _mm256_i32gather_pd(tempData, offset, 8);
-							double s = a.data[c0 * width + c2];
+							double s = data[c0 * width + c2];
 							__m256d tp0 = { s,s,s,s };
-							s = a.data[(c0 + 1) * width + c2];
+							s = data[(c0 + 1) * width + c2];
 							__m256d tp1 = { s,s,s,s };
 #pragma unroll(4)
 							for (unsigned int c3(0); c3 < warp; ++c3)
@@ -816,6 +879,27 @@ namespace BLAS
 			}
 			::printf("{width: %u, height: %u, type: %s, matType: %s}\n", width, height,
 				type == Type::Native ? "Native" : "Parasitic", str);
+		}
+		void printToTxt(char const* name)const
+		{
+			//in the form of Mathematica matrix
+			if (data)
+			{
+				FILE* temp(::fopen(name, "w+"));
+				::fprintf(temp, "{\n");
+				for (unsigned int c0(0); c0 < height - 1; ++c0)
+				{
+					::fprintf(temp, "{%.8f", data[width * c0]);
+					for (unsigned int c1(1); c1 < width; ++c1)
+						::fprintf(temp, ", %.8f", data[width * c0 + c1]);
+					::fprintf(temp, "},\n");
+				}
+				::fprintf(temp, "{%.8f", data[width * (height - 1)]);
+				for (unsigned int c1(1); c1 < width; ++c1)
+					::fprintf(temp, ", %.8f", data[width * (height - 1) + c1]);
+				::fprintf(temp, "}\n}");
+				::fclose(temp);
+			}
 		}
 	};
 
