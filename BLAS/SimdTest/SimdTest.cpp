@@ -58,9 +58,9 @@ int main()
 	std::mt19937 mt(time(nullptr));
 	std::uniform_real_distribution<double> rd(0, 2);
 	unsigned int l(1024 * 1024);
-	double* a((double*)::malloc(l * sizeof(double)));
-	double* b((double*)::malloc(l * sizeof(double)));
-	double* c((double*)::malloc(l * sizeof(double)));
+	double* a((double*)_aligned_malloc(l * sizeof(double), 32));
+	double* b((double*)_aligned_malloc(l * sizeof(double), 32));
+	double* c((double*)_aligned_malloc(l * sizeof(double), 32));
 	__m256d* av((__m256d*)a);
 	__m256d* bv((__m256d*)b);
 	__m256d* cv((__m256d*)c);
