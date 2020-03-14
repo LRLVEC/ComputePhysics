@@ -104,7 +104,6 @@ int main()
 	timer.end();
 	timer.print("mat mult vec:");
 
-
 	timer.begin();
 	mat matE(matA(matB));
 	timer.end();

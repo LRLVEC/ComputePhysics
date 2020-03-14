@@ -886,17 +886,28 @@ namespace BLAS
 				for (unsigned int c0(0); c0 < height; c0 += 4 * warp)
 				{
 					__m256d ans[warp] = { 0 };
-					for (unsigned int c1(0); c1 < minDim; ++c1)
+					for (unsigned int c1(0); c1 < minDim; c1 += 4)
 					{
+						__m256d tp[4];
 						double b = a.data[c1];
-						__m256d tp0 = { b,b,b,b };
+						tp[0] = { b,b,b,b };
+						b = a.data[c1 + 1];
+						tp[1] = { b,b,b,b };
+						b = a.data[c1 + 2];
+						tp[2] = { b,b,b,b };
+						b = a.data[c1 + 3];
+						tp[3] = { b,b,b,b };
 						double* ad(data + width4d * c0 + c1);
 #pragma unroll(4)
 						for (unsigned int c2(0); c2 < warp; ++c2)
 						{
-							__m256d t = _mm256_i32gather_pd(
-								ad + c2 * 4 * width4d, offset, 8);
-							ans[c2] = _mm256_fmadd_pd(t, tp0, ans[c2]);
+							double* adf(ad + c2 * 4 * width4d);
+#pragma unroll(4)
+							for (unsigned int c3(0); c3 < 4; ++c3)
+							{
+								__m256d t = _mm256_i32gather_pd(adf + c3, offset, 8);
+								ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+							}
 						}
 					}
 #pragma unroll(4)
