@@ -472,6 +472,19 @@ namespace BLAS
 			::printf("{length: %u, type: %s}\n", dim,
 				type == Type::Native ? "Native" : "Parasitic");
 		}
+		void printToTxt(char const* name)const
+		{
+			//in the form of Mathematica matrix
+			if (data)
+			{
+				FILE* temp(::fopen(name, "w+"));
+				::fprintf(temp, "{");
+				for (unsigned int c0(0); c0 < dim - 1; ++c0)
+					::fprintf(temp, "{%.8f}, ", data[c0]);
+				::fprintf(temp, "{%.8f}}\n", data[dim - 1]);
+				::fclose(temp);
+			}
+		}
 	};
 	struct mat
 	{
@@ -864,7 +877,11 @@ namespace BLAS
 						r.data[c1] += a.data[c0] * data[c1 * width4d + c0];*/
 				constexpr unsigned int warp = 4;
 				int d(width4d);
-				__m128i offset = { 0, d, 2 * d, 3 * d };
+				__m128i offset;
+				offset.m128i_i32[0] = 0;
+				offset.m128i_i32[1] = d;
+				offset.m128i_i32[2] = 2 * d;
+				offset.m128i_i32[3] = 3 * d;
 				__m256d* rData((__m256d*)r.data);
 				for (unsigned int c0(0); c0 < height; c0 += 4 * warp)
 				{
@@ -878,7 +895,7 @@ namespace BLAS
 						for (unsigned int c2(0); c2 < warp; ++c2)
 						{
 							__m256d t = _mm256_i32gather_pd(
-								ad + c2 * 4, offset, 8);
+								ad + c2 * 4 * width4d, offset, 8);
 							ans[c2] = _mm256_fmadd_pd(t, tp0, ans[c2]);
 						}
 					}
