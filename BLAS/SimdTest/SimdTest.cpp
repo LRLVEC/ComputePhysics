@@ -2,74 +2,80 @@
 #include <cstring>
 #include <cstdio>
 #include <immintrin.h>
-//#include <ammintrin.h>
+#include <random>
 #include <_Time.h>
 
-void testALU(double* a, double* b, double* c, unsigned int l)
+
+void clear(double* a, unsigned int length)
 {
-	for (unsigned int c0(0); c0 < 10; ++c0)
-	{
-		for (unsigned int c1(0); c1 < l; ++c1)
-			c[c1] = a[c1] * b[c1];
-		for (unsigned int c1(0); c1 < l; ++c1)
-			a[c1] = b[c1] * c[c1];
-		for (unsigned int c1(0); c1 < l; ++c1)
-			b[c1] = a[c1] * c[c1];
-	}
+	for (unsigned int c0(0); c0 < length; ++c0)
+		a[c0] = 0;
 }
-void testAVX2(__m256d* a, __m256d* b, __m256d* c, unsigned int l)
+void randomMat(double* a, unsigned int length, std::mt19937& mt, std::uniform_real_distribution<double>& rd)
 {
-	for (unsigned int c0(0); c0 < 10; ++c0)
-	{
-		for (unsigned int c1(0); c1 < l; ++c1)
-			c[c1] = _mm256_mul_pd(a[c1], b[c1]);
-		for (unsigned int c1(0); c1 < l; ++c1)
-			a[c1] = _mm256_mul_pd(b[c1], c[c1]);
-		for (unsigned int c1(0); c1 < l; ++c1)
-			b[c1] = _mm256_mul_pd(a[c1], c[c1]);
-	}
+	for (unsigned int c0(0); c0 < length; ++c0)
+		a[c0] = rd(mt);
 }
 
-void clear(double* a, double* b, unsigned int l)
+void matMult(double* a, double* b, double* c, unsigned int widthA,
+	unsigned int heightA, unsigned int widthB, unsigned int heightB)
 {
-	for (unsigned int c0(0); c0 < l; ++c0)
-	{
-		a[c0] = double(rand()) / rand();
-		b[c0] = double(rand()) / rand();
-	}
+	__m256d* aData((__m256d*)a);
+	__m256d* cData((__m256d*)c);
+	unsigned int widthA4(widthA / 4);
+	unsigned int minDim(widthA > heightB ? heightB : widthA);
+	constexpr unsigned int warp = 16;
+	for (unsigned int c0(0); c0 < heightA; c0 += 2)
+		for (unsigned int c1(0); c1 < widthA4; c1 += warp)
+		{
+			__m256d ans0[warp] = { 0 };
+			__m256d ans1[warp] = { 0 };
+			for (unsigned int c2(0); c2 < minDim; ++c2)
+			{
+				double s = a[c0 * widthA + c2];
+				__m256d tp0 = { s,s,s,s };
+				s = a[(c0 + 1) * widthA + c2];
+				__m256d tp1 = { s,s,s,s };
+#pragma unroll(4)
+				for (unsigned int c3(0); c3 < warp; ++c3)
+				{
+					__m256d b = aData[widthA4 * c2 + c1 + c3];
+					ans0[c3] = _mm256_fmadd_pd(tp0, b, ans0[c3]);
+					ans1[c3] = _mm256_fmadd_pd(tp1, b, ans1[c3]);
+				}
+			}
+#pragma unroll(4)
+			for (unsigned int c3(0); c3 < warp; ++c3)
+			{
+				cData[c0 * widthA4 + c1 + c3] = ans0[c3];
+				cData[(c0 + 1) * widthA4 + c1 + c3] = ans1[c3];
+			}
+		}
 }
 
 int main()
 {
-	srand(time(nullptr));
-	unsigned int l(20000000);
+	std::mt19937 mt(time(nullptr));
+	std::uniform_real_distribution<double> rd(0, 2);
+	unsigned int l(1024 * 1024);
 	double* a((double*)::malloc(l * sizeof(double)));
 	double* b((double*)::malloc(l * sizeof(double)));
 	double* c((double*)::malloc(l * sizeof(double)));
-	unsigned int lv(l / 4);
 	__m256d* av((__m256d*)a);
 	__m256d* bv((__m256d*)b);
 	__m256d* cv((__m256d*)c);
 
 	Timer timer;
 
-	for (unsigned int c0(0); c0 < 10; ++c0)
-	{
-		clear(a, b, l);
-		timer.begin();
-		testALU(a, b, c, l);
-		timer.end();
-		timer.print("ALU:");
+	randomMat(a, l, mt, rd);
+	randomMat(b, l, mt, rd);
+	clear(c, l);
 
-	}
-	for (unsigned int c0(0); c0 < 10; ++c0)
-	{
-		clear(a, b, l);
-		timer.begin();
-		testAVX2(av, bv, cv, lv);
-		timer.end();
-		timer.print("AVX2:");
-	}
+	timer.begin();
+	matMult(a, b, c, 1024, 1024, 1024, 1024);
+	timer.end();
+	timer.print("AVX2:");
+
 	::free(a);
 	::free(b);
 	::free(c);
