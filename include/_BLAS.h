@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <immintrin.h>
 
+//if you can change it, than change it
 namespace BLAS
 {
 	static constexpr double Pi = 3.14159265358979323846264338327950288L;
@@ -31,6 +32,10 @@ namespace BLAS
 	inline unsigned int ceiling4(unsigned int length)
 	{
 		return (((length - 1) >> 2) + 1) << 2;
+	}
+	inline unsigned int floor(unsigned int length)
+	{
+		return (length >> 2) << 2;
 	}
 	inline unsigned long long ceiling4(unsigned int width, unsigned int height)
 	{
@@ -120,6 +125,7 @@ namespace BLAS
 				{
 					data = malloc256d(a.dim);
 					dim = a.dim;
+					memcpy64d(data, a.data, dim);
 				}
 			}
 		}
@@ -143,38 +149,56 @@ namespace BLAS
 			return data[a];
 		}
 		//moveTo
-		vec& moveTo(vec& a)
-		{
-			if (type == Type::Native)
-			{
-				a.~vec();
-				a.data = data;
-				a.dim = dim;
-				a.type = type;
-				data = nullptr;
-				dim = 0;
-			}
-			else a = *this;
-			return a;
-		}
+		//vec& moveTo(vec& a)
+		//{
+		//	if (type == Type::Native)
+		//	{
+		//		a.~vec();
+		//		a.data = data;
+		//		a.dim = dim;
+		//		a.type = type;
+		//		data = nullptr;
+		//		dim = 0;
+		//	}
+		//	else a = *this;
+		//	return a;
+		//}
+
 		//= += -= *= /=
 		vec& operator =(vec&& a)
 		{
-			if (a.type == Type::Native)
+			if (type == Type::Native)
 			{
-				_mm_free(data);
-				data = a.data;
-				dim = a.dim;
-				a.data = nullptr;
-				a.dim = 0;
+				if (a.type == Type::Native)
+				{
+					_mm_free(data);
+					data = a.data;
+					dim = a.dim;
+					a.data = nullptr;
+					a.dim = 0;
+				}
+				else
+				{
+					_mm_free(data);
+					if (a.data)data = malloc256d(a.dim);
+					else data = nullptr;
+					dim = a.dim;
+				}
 			}
 			else
 			{
-				if (dim >= a.dim)
-					memcpy256d(data, a.data, a.dim);
-				else
+				unsigned minDim(dim > a.dim ? a.dim : dim);
+				if (minDim)memcpy64d(data, a.data, minDim);
+			}
+			return *this;
+		}
+		vec& operator =(vec const& a)
+		{
+			if (a.dim)
+			{
+				if (type == Type::Native)
 				{
-					if (type == Type::Native)
+					if (dim != a.dim)
 					{
 						_mm_free(data);
 						data = malloc256d(a.dim);
@@ -182,23 +206,10 @@ namespace BLAS
 					}
 					memcpy64d(data, a.data, dim);
 				}
-			}
-		}
-		vec& operator =(vec const& a)
-		{
-			if (a.dim)
-			{
-				if (dim >= a.dim)
-					memcpy64d(data, a.data, a.dim);
 				else
 				{
-					if (type == Type::Native)
-					{
-						_mm_free(data);
-						data = malloc256d(a.dim);
-						dim = a.dim;
-					}
-					memcpy64d(data, a.data, dim);
+					unsigned minDim(dim > a.dim ? a.dim : dim);
+					memcpy64d(data, a.data, minDim);
 				}
 			}
 			return *this;
@@ -490,7 +501,7 @@ namespace BLAS
 			data((a.width&& a.height) ? malloc256d(a.width, a.height) : nullptr),
 			width(a.width),
 			height(a.height),
-			width4d(ceiling4(a.width)),
+			width4d(a.width4d),
 			type(Type::Native),
 			matType(a.matType)
 		{
@@ -508,7 +519,7 @@ namespace BLAS
 					height = a.height;
 					matType = a.matType;
 					a.data = nullptr;
-					a.width = a.height = 0;
+					a.width = a.height = a.width4d = 0;
 				}
 				else
 				{
@@ -547,7 +558,7 @@ namespace BLAS
 					width4d = ceiling4(width);
 					type = Type::Native;
 					matType = MatType::NormalMat;
-					for (unsigned int c0(0); c0 < h; ++c0)
+					for (unsigned int c0(0); c0 < height; ++c0)
 						memcpy64d(data + width4d * c0, (a.begin() + c0)->begin(),
 						(a.begin() + c0)->size());
 				}
@@ -570,71 +581,63 @@ namespace BLAS
 		//= += -= *= /=
 		mat& operator =(mat&& a)
 		{
-			if (a.data)
+			if (type == Type::Native)
 			{
-				if (type == Type::Native)
+				if (a.type == Type::Native)
 				{
-					if (a.type == Type::Native)
-					{
-						_mm_free(data);
-						data = a.data;
-						width = a.width;
-						height = a.height;
-						width4d = a.width4d;
-						matType = a.matType;
-						a.data = nullptr;
-						a.width = a.height = a.width4d = 0;
-					}
-					else
-					{
-						if (unsigned long long(a.width) * a.height == unsigned long long(width) * height)
-						{
-							_mm_free(data);
-							data = malloc256d(a.width, a.height);
-						}
-						width = a.width;
-						height = a.height;
-						width4d = a.width4d;
-						memcpy256d(data, a.data, width, height);
-					}
+					_mm_free(data);
+					data = a.data;
+					width = a.width;
+					height = a.height;
+					width4d = a.width4d;
+					matType = a.matType;
+					a.data = nullptr;
+					a.width = a.height = a.width4d = 0;
 				}
 				else
 				{
-					unsigned int minWidth(width <= a.width ? width : a.width);
-					unsigned int minHeight(height <= a.height ? height : a.height);
-					for (unsigned int c0(0); c0 < minHeight; ++c0)
-						memcpy64d(data + width4d * c0, a.data + a.width4d * c0, minWidth);
+					if (unsigned long long(a.width4d) * a.height !=
+						unsigned long long(width4d) * height)
+					{
+						_mm_free(data);
+						data = malloc256d(a.width, a.height);
+					}
+					width = a.width;
+					height = a.height;
+					width4d = a.width4d;
+					memcpy256d(data, a.data, width, height);
 				}
+			}
+			else
+			{
+				unsigned int minWidth(width > a.width ? a.width : width);
+				unsigned int minHeight(height > a.height ? a.height : height);
+				for (unsigned int c0(0); c0 < minHeight; ++c0)
+					memcpy64d(data + width4d * c0, a.data + a.width4d * c0, minWidth);
 			}
 			return *this;
 		}
 		mat& operator =(mat const& a)
 		{
-			if (a.data)
+			if (type == Type::Native)
 			{
-				size_t s(ceiling256dSize(width, height));
-				size_t sa(ceiling256dSize(a.width, a.height));
-				if (sa == s)memcpy(data, a.data, s);
-				else
+				if (unsigned long long(a.width4d) * a.height !=
+					unsigned long long(width4d) * height)
 				{
-					if (type == Type::Native)
-					{
-						_mm_free(data);
-						data = malloc256d(a.width, a.height);
-						width = a.width;
-						height = a.height;
-						width4d = a.width4d;
-						matType = a.matType;
-						memcpy(data, a.data, sa);
-					}
-					else
-					{
-						unsigned int minWidth(width <= a.width ? width : a.width);
-						unsigned int minHeight(height <= a.height ? height : a.height);
-						for (unsigned int c0(0); c0 < minHeight; ++c0)
-							memcpy64d(data + width4d * c0, a.data + a.width4d * c0, minWidth);
-					}
+					_mm_free(data);
+					data = malloc256d(a.width, a.height);
 				}
+				width = a.width;
+				height = a.height;
+				width4d = a.width4d;
+				memcpy256d(data, a.data, width, height);
+			}
+			else
+			{
+				unsigned int minWidth(width > a.width ? a.width : width);
+				unsigned int minHeight(height > a.height ? a.height : height);
+				for (unsigned int c0(0); c0 < minHeight; ++c0)
+					memcpy64d(data + width4d * c0, a.data + a.width4d * c0, minWidth);
 			}
 			return *this;
 		}
@@ -853,14 +856,36 @@ namespace BLAS
 		vec operator()(vec const& a)const
 		{
 			unsigned int minDim(width > a.dim ? a.dim : width);
-			unsigned int minDim4d(ceiling4(minDim));
 			if (minDim && height)
 			{
-				vec r(height);
-
-				for (unsigned int c0(0); c0 < minDim; ++c0)
+				vec r(height, false);
+				/*for (unsigned int c0(0); c0 < minDim; ++c0)
 					for (unsigned int c1(0); c1 < height; ++c1)
-						r.data[c1] += a.data[c0] * data[c1 * width4d + c0];
+						r.data[c1] += a.data[c0] * data[c1 * width4d + c0];*/
+				constexpr unsigned int warp = 4;
+				int d(width4d);
+				__m128i offset = { 0, d, 2 * d, 3 * d };
+				__m256d* rData((__m256d*)r.data);
+				for (unsigned int c0(0); c0 < height; c0 += 4 * warp)
+				{
+					__m256d ans[warp] = { 0 };
+					for (unsigned int c1(0); c1 < minDim; ++c1)
+					{
+						double b = a.data[c1];
+						__m256d tp0 = { b,b,b,b };
+						double* ad(data + width4d * c0 + c1);
+#pragma unroll(4)
+						for (unsigned int c2(0); c2 < warp; ++c2)
+						{
+							__m256d t = _mm256_i32gather_pd(
+								ad + c2 * 4, offset, 8);
+							ans[c2] = _mm256_fmadd_pd(t, tp0, ans[c2]);
+						}
+					}
+#pragma unroll(4)
+					for (unsigned int c2(0); c2 < warp; ++c2)
+						rData[(c0 >> 2) + c2] = ans[c2];
+				}
 				return r;
 			}
 			return vec();
@@ -871,7 +896,7 @@ namespace BLAS
 			if (height && a.width)
 			{
 				unsigned int minDim(width > a.height ? a.height : width);
-				mat r(a.width, height);
+				mat r(a.width, height, false);
 				/*for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < minDim; ++c1)
 						for (unsigned int c2(0); c2 < a.width; ++c2)

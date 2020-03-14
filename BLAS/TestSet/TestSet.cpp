@@ -31,10 +31,17 @@ int main()
 	vec vecA(128 * 128);
 	vec vecB(128 * 128);
 	vec vecC(1024);
+	mat matA(1024, 1024, false);
+	mat matB(1024, 1024, false);
+	//mat matC(3, 2, false);
+	//mat matD(64, 3, false);
 	randomVec(vecA, mt, rd);
 	randomVec(vecB, mt, rd);
 	randomVec(vecC, mt, rd);
+	randomMat(matA, mt, rd);
+	randomMat(matB, mt, rd);
 
+	//vec
 	timer.begin();
 	for (unsigned int c0(0); c0 < 100; ++c0)
 		vecA += vecB;
@@ -84,12 +91,17 @@ int main()
 	::printf("vec normInf:%.4f\t", norm);
 	timer.print();
 
-	mat matA(1024, 1024, false);
-	mat matB(1024, 1024, false);
-	mat matC(3, 2, false);
-	mat matD(64, 3, false);
-	randomMat(matA, mt, rd);
-	randomMat(matB, mt, rd);
+	//mat
+	timer.begin();
+	for (unsigned int c0(0); c0 < 100; ++c0)
+		matA(vecC);
+	timer.end();
+	timer.print("mat mult vec:");
+
+	timer.begin();
+	mat matE(matA(matB));
+	timer.end();
+	timer.print("mat mult mat:");
 
 	timer.begin();
 	matA += matB;
@@ -111,36 +123,16 @@ int main()
 	timer.end();
 	timer.print("mat div:");
 
-	randomMat(matA, mt, rd);
-	randomMat(matB, mt, rd);
 
-	timer.begin();
-	vec vecD(matA(vecC));
-	timer.end();
-	timer.print("mat mult vec:");
+	//randomMat(matC, mt, rd);
+	//randomMat(matD, mt, rd);
 
-	timer.begin();
-	mat matE(matA(matB));
-	timer.end();
-	timer.print("mat mult mat:");
+	//timer.begin();
+	//matE=matC(matD);
+	//timer.end();
+	//timer.print("mat mult mat:");
 
-	randomMat(matC, mt, rd);
-	randomMat(matD, mt, rd);
-
-	timer.begin();
-	matE=matC(matD);
-	timer.end();
-	timer.print("mat mult mat:");
-
-	matC.printToTxt("./matC.txt");
-	matD.printToTxt("./matD.txt");
-	matE.printToTxt("./matE.txt");
-
-	//::printf("%f\n", a[2]);
-	//a += a;
-	//a.print();
-	//a.printInfo();
-	//(a / a).print();
-	//printf("%f\n", a.normInf());
-
+	//matC.printToTxt("./matC.txt");
+	//matD.printToTxt("./matD.txt");
+	//matE.printToTxt("./matE.txt");
 }
