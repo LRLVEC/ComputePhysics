@@ -1025,10 +1025,44 @@ namespace BLAS
 		unsigned int minDim(a.height > dim ? dim : a.height);
 		if (minDim)
 		{
-			vec r(a.width);
-			for (unsigned int c0(0); c0 < minDim; ++c0)
+			vec r(a.width, false);
+			/*for (unsigned int c0(0); c0 < minDim; ++c0)
 				for (unsigned int c1(0); c1 < a.width; ++c1)
-					r.data[c1] += data[c0] * a.data[c0 * a.width4d + c1];
+					r.data[c1] += data[c0] * a.data[c0 * a.width4d + c1];*/
+			constexpr unsigned int warp = 16;
+			unsigned int width4(a.width / 4);
+			__m256d* aData((__m256d*)a.data);
+			__m256d* rData((__m256d*)r.data);
+			for (unsigned int c0(0); c0 < width4; c0 += warp)
+			{
+				__m256d ans[warp] = { 0 };
+				for (unsigned int c1(0); c1 < minDim; c1 += 4)
+				{
+					__m256d tp[4];
+					double b = data[c1];
+					tp[0] = { b,b,b,b };
+					b = data[c1 + 1];
+					tp[1] = { b,b,b,b };
+					b = data[c1 + 2];
+					tp[2] = { b,b,b,b };
+					b = data[c1 + 3];
+					tp[3] = { b,b,b,b };
+#pragma unroll(4)
+					for (unsigned int c2(0); c2 < warp; ++c2)
+					{
+						__m256d* s(aData + width4 * c1 + c0 + c2);
+#pragma unroll(4)
+						for (unsigned int c3(0); c3 < 4; ++c3)
+						{
+							__m256d t = s[c3 * width4];
+							ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+						}
+					}
+				}
+#pragma unroll(4)
+				for (unsigned int c3(0); c3 < warp; ++c3)
+					rData[c0 + c3] = ans[c3];
+			}
 			return r;
 		}
 		return vec();

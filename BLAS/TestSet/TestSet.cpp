@@ -105,6 +105,12 @@ int main()
 	timer.print("mat mult vec:");
 
 	timer.begin();
+	for (unsigned int c0(0); c0 < 100; ++c0)
+		vecC(matA);
+	timer.end();
+	timer.print("vec mult mat:");
+
+	timer.begin();
 	mat matE(matA(matB));
 	timer.end();
 	timer.print("mat mult mat:");
