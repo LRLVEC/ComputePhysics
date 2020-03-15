@@ -872,9 +872,9 @@ namespace BLAS
 			if (minDim && height)
 			{
 				vec r(height, false);
-				/*for (unsigned int c0(0); c0 < minDim; ++c0)
-					for (unsigned int c1(0); c1 < height; ++c1)
-						r.data[c1] += a.data[c0] * data[c1 * width4d + c0];*/
+				/*for (unsigned int c0(0); c0 < height; ++c0)
+					for (unsigned int c1(0); c1 < minDim; ++c1)
+						r.data[c0] += a.data[c1] * data[c0 * width4d + c1];*/
 				constexpr unsigned int warp = 4;
 				int d(width4d);
 				__m128i offset;
