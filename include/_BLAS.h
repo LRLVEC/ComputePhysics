@@ -875,44 +875,79 @@ namespace BLAS
 				/*for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < minDim; ++c1)
 						r.data[c0] += a.data[c1] * data[c0 * width4d + c1];*/
-				constexpr unsigned int warp = 4;
-				int d(width4d);
-				__m128i offset;
-				offset.m128i_i32[0] = 0;
-				offset.m128i_i32[1] = d;
-				offset.m128i_i32[2] = 2 * d;
-				offset.m128i_i32[3] = 3 * d;
+						/*constexpr unsigned int warp = 4;
+								int d(width4d);
+								__m128i offset;
+								offset.m128i_i32[0] = 0;
+								offset.m128i_i32[1] = d;
+								offset.m128i_i32[2] = 2 * d;
+								offset.m128i_i32[3] = 3 * d;
+								__m256d* rData((__m256d*)r.data);
+								for (unsigned int c0(0); c0 < height; c0 += 4 * warp)
+								{
+									__m256d ans[warp] = { 0 };
+									for (unsigned int c1(0); c1 < minDim; c1 += 4)
+									{
+										__m256d tp[4];
+										double b = a.data[c1];
+										tp[0] = { b,b,b,b };
+										b = a.data[c1 + 1];
+										tp[1] = { b,b,b,b };
+										b = a.data[c1 + 2];
+										tp[2] = { b,b,b,b };
+										b = a.data[c1 + 3];
+										tp[3] = { b,b,b,b };
+										double* ad(data + width4d * c0 + c1);
+				#pragma unroll(4)
+										for (unsigned int c2(0); c2 < warp; ++c2)
+										{
+											double* adf(ad + c2 * 4 * width4d);
+				#pragma unroll(4)
+											for (unsigned int c3(0); c3 < 4; ++c3)
+											{
+												__m256d t = _mm256_i32gather_pd(adf + c3, offset, 8);
+												ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+											}
+										}
+									}
+				#pragma unroll(4)
+									for (unsigned int c2(0); c2 < warp; ++c2)
+										rData[(c0 >> 2) + c2] = ans[c2];
+								}*/
+				constexpr unsigned int warp = 8;
+				unsigned int minWidth4((minDim - 1) / 4 + 1);
+				__m256d* aData((__m256d*)data);
+				__m256d* bData((__m256d*)a.data);
 				__m256d* rData((__m256d*)r.data);
-				for (unsigned int c0(0); c0 < height; c0 += 4 * warp)
+				for (unsigned int c0(0); c0 < height; c0 += 4)
 				{
-					__m256d ans[warp] = { 0 };
-					for (unsigned int c1(0); c1 < minDim; c1 += 4)
+					__m256d ans[4] = { 0 };
+					__m256d tp[warp];
+					for (unsigned int c1(0); c1 < minWidth4; c1 += warp)
 					{
-						__m256d tp[4];
-						double b = a.data[c1];
-						tp[0] = { b,b,b,b };
-						b = a.data[c1 + 1];
-						tp[1] = { b,b,b,b };
-						b = a.data[c1 + 2];
-						tp[2] = { b,b,b,b };
-						b = a.data[c1 + 3];
-						tp[3] = { b,b,b,b };
-						double* ad(data + width4d * c0 + c1);
+						__m256d* s(aData + minWidth4 * c0 + c1);
 #pragma unroll(4)
 						for (unsigned int c2(0); c2 < warp; ++c2)
+							tp[c2] = bData[c1 + c2];
+						for (unsigned int c2(0); c2 < 4; ++c2, s += minWidth4)
 						{
-							double* adf(ad + c2 * 4 * width4d);
 #pragma unroll(4)
-							for (unsigned int c3(0); c3 < 4; ++c3)
+							for (unsigned int c3(0); c3 < warp; ++c3)
 							{
-								__m256d t = _mm256_i32gather_pd(adf + c3, offset, 8);
+								__m256d t = s[c3];
 								ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
 							}
 						}
 					}
-#pragma unroll(4)
-					for (unsigned int c2(0); c2 < warp; ++c2)
-						rData[(c0 >> 2) + c2] = ans[c2];
+					__m256d s;
+					for (unsigned int c1(0); c1 < 4; ++c1)
+					{
+						s.m256d_f64[c1] = ans[c1].m256d_f64[0];
+						s.m256d_f64[c1] += ans[c1].m256d_f64[1];
+						s.m256d_f64[c1] += ans[c1].m256d_f64[2];
+						s.m256d_f64[c1] += ans[c1].m256d_f64[3];
+					}
+					rData[c0 >> 2] = s;
 				}
 				return r;
 			}
@@ -1030,7 +1065,7 @@ namespace BLAS
 				for (unsigned int c1(0); c1 < a.width; ++c1)
 					r.data[c1] += data[c0] * a.data[c0 * a.width4d + c1];*/
 			constexpr unsigned int warp = 16;
-			unsigned int width4(a.width / 4);
+			unsigned int width4((a.width - 1) / 4 + 1);
 			__m256d* aData((__m256d*)a.data);
 			__m256d* rData((__m256d*)r.data);
 			for (unsigned int c0(0); c0 < width4; c0 += warp)
@@ -1047,10 +1082,10 @@ namespace BLAS
 					tp[2] = { b,b,b,b };
 					b = data[c1 + 3];
 					tp[3] = { b,b,b,b };
+					__m256d* s(aData + width4 * c1 + c0);
 #pragma unroll(4)
-					for (unsigned int c2(0); c2 < warp; ++c2)
+					for (unsigned int c2(0); c2 < warp; ++c2, ++s)
 					{
-						__m256d* s(aData + width4 * c1 + c0 + c2);
 #pragma unroll(4)
 						for (unsigned int c3(0); c3 < 4; ++c3)
 						{
