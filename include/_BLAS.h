@@ -1050,10 +1050,16 @@ namespace BLAS
 
 				__m256d* aData((__m256d*)a.data);
 				__m256d* rData((__m256d*)r.data);
-				unsigned int aWidth256d(a.width4d / 4);
 				constexpr unsigned int warp = 16;
-				for (unsigned int c0(0); c0 < height; c0 += 2)
-					for (unsigned int c1(0); c1 < aWidth256d; c1 += warp)
+				unsigned int aWidth256d(a.width4d / 4);
+				unsigned int aWidthWarpFloor(aWidth256d / warp * warp);
+				unsigned int warpLeft(aWidth256d - aWidthWarpFloor);
+				unsigned int height2Floor(height & (-2));
+				unsigned int c0(0);
+				for (; c0 < height2Floor; c0 += 2)
+				{
+					unsigned int c1(0);
+					for (; c1 < aWidthWarpFloor; c1 += warp)
 					{
 						__m256d ans0[warp] = { 0 };
 						__m256d ans1[warp] = { 0 };
@@ -1079,6 +1085,69 @@ namespace BLAS
 							rData[(c0 + 1) * aWidth256d + c1 + c3] = ans1[c3];
 						}
 					}
+					if (c1 < aWidth256d)
+					{
+						__m256d ans0[warp] = { 0 };
+						__m256d ans1[warp] = { 0 };
+						for (unsigned int c2(0); c2 < minDim; ++c2)
+						{
+							double s = data[c0 * width4d + c2];
+							__m256d tp0 = { s,s,s,s };
+							s = data[(c0 + 1) * width4d + c2];
+							__m256d tp1 = { s,s,s,s };
+							for (unsigned int c3(0); c3 < warpLeft; ++c3)
+							{
+								__m256d b = aData[aWidth256d * c2 + c1 + c3];
+								ans0[c3] = _mm256_fmadd_pd(tp0, b, ans0[c3]);
+								ans1[c3] = _mm256_fmadd_pd(tp1, b, ans1[c3]);
+							}
+						}
+						for (unsigned int c3(0); c3 < warpLeft; ++c3)
+						{
+							rData[c0 * aWidth256d + c1 + c3] = ans0[c3];
+							rData[(c0 + 1) * aWidth256d + c1 + c3] = ans1[c3];
+						}
+					}
+				}
+				if (c0 < height)
+				{
+					unsigned int c1(0);
+					for (; c1 < aWidthWarpFloor; c1 += warp)
+					{
+						__m256d ans0[warp] = { 0 };
+						for (unsigned int c2(0); c2 < minDim; ++c2)
+						{
+							//__m256d t = _mm256_i32gather_pd(tempData, offset, 8);
+							double s = data[c0 * width4d + c2];
+							__m256d tp0 = { s,s,s,s };
+#pragma unroll(4)
+							for (unsigned int c3(0); c3 < warp; ++c3)
+							{
+								__m256d b = aData[aWidth256d * c2 + c1 + c3];
+								ans0[c3] = _mm256_fmadd_pd(tp0, b, ans0[c3]);
+							}
+						}
+#pragma unroll(4)
+						for (unsigned int c3(0); c3 < warp; ++c3)
+							rData[c0 * aWidth256d + c1 + c3] = ans0[c3];
+					}
+					if (c1 < aWidth256d)
+					{
+						__m256d ans0[warp] = { 0 };
+						for (unsigned int c2(0); c2 < minDim; ++c2)
+						{
+							double s = data[c0 * width4d + c2];
+							__m256d tp0 = { s,s,s,s };
+							for (unsigned int c3(0); c3 < warpLeft; ++c3)
+							{
+								__m256d b = aData[aWidth256d * c2 + c1 + c3];
+								ans0[c3] = _mm256_fmadd_pd(tp0, b, ans0[c3]);
+							}
+						}
+						for (unsigned int c3(0); c3 < warpLeft; ++c3)
+							rData[c0 * aWidth256d + c1 + c3] = ans0[c3];
+					}
+				}
 				return r;
 			}
 			return mat();
