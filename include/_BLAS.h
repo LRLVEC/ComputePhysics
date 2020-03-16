@@ -1185,7 +1185,7 @@ namespace BLAS
 		}
 		void printToTxt(char const* name)const
 		{
-			//in the form of Mathematica matrix
+			//in the form of Mathematica matrix(for paste)
 			if (data)
 			{
 				FILE* temp(::fopen(name, "w+"));
@@ -1202,6 +1202,20 @@ namespace BLAS
 					::fprintf(temp, ", %.8f", data[width4d * (height - 1) + c1]);
 				::fprintf(temp, "}\n}");
 				::fclose(temp);
+			}
+		}
+		void printToTableTxt(char const* name)const
+		{
+			//in the form of Mathematica matrix(for Import)
+			if (data)
+			{
+				FILE* temp(::fopen(name, "w+"));
+				for (unsigned int c0(0); c0 < height; ++c0)
+				{
+					for (unsigned int c1(0); c1 < width; ++c1)
+						::fprintf(temp, "%.8f ", data[width4d * c0 + c1]);
+					::fprintf(temp, "\n");
+				}
 			}
 		}
 	};

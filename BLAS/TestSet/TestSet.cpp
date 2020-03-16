@@ -150,9 +150,9 @@ int main()
 	//timer.end();
 	//timer.print("mat mult vec:");
 
-	matA.printToTxt("./matA.txt");
-	matB.printToTxt("./matB.txt");
-	matE.printToTxt("./matE.txt");
+	matA.printToTableTxt("./matA.txt");
+	matB.printToTableTxt("./matB.txt");
+	matE.printToTableTxt("./matE.txt");
 	//matD.printToTxt("./matD.txt");
 	//matE.printToTxt("./matE.txt");
 }
