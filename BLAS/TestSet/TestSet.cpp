@@ -32,10 +32,10 @@ int main()
 	vec vecA(128 * 128);
 	vec vecB(128 * 128);
 	vec vecC(1024);
-	vec vecD(32);
+	vec vecD(7, false);
 	mat matA(1024, 1024, false);
 	mat matB(1024, 1024, false);
-	mat matC(32, 4, false);
+	mat matC(7, 7, false);
 	//mat matD(64, 3, false);
 	randomVec(vecA, mt, rd);
 	randomVec(vecB, mt, rd);

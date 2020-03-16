@@ -148,6 +148,12 @@ namespace BLAS
 		{
 			return data[a];
 		}
+		void clearTail()
+		{
+			if (dim & 3)
+				for (unsigned int c0(dim); c0 < ceiling4(dim); ++c0)
+					data[c0] = 0;
+		}
 		//moveTo
 		//vec& moveTo(vec& a)
 		//{
@@ -920,11 +926,17 @@ namespace BLAS
 				__m256d* aData((__m256d*)data);
 				__m256d* bData((__m256d*)a.data);
 				__m256d* rData((__m256d*)r.data);
-				for (unsigned int c0(0); c0 < height; c0 += 4)
+				unsigned int heightFloor4((height >> 2) << 2);
+				unsigned int widthWarp((minWidth4 / warp) * warp);
+				unsigned int warpLeftFloor((minDim >> 2) - widthWarp);
+				unsigned int warpLeftCeiling(minWidth4 - widthWarp);
+				unsigned int c0(0);
+				for (; c0 < heightFloor4; c0 += 4)
 				{
 					__m256d ans[4] = { 0 };
 					__m256d tp[warp];
-					for (unsigned int c1(0); c1 < minWidth4; c1 += warp)
+					unsigned int c1(0);
+					for (; c1 < widthWarp; c1 += warp)
 					{
 						__m256d* s(aData + minWidth4 * c0 + c1);
 #pragma unroll(4)
@@ -940,8 +952,78 @@ namespace BLAS
 							}
 						}
 					}
+					if (c1 < minWidth4)
+					{
+						__m256d* s(aData + minWidth4 * c0 + c1);
+#pragma unroll(4)
+						for (unsigned int c2(0); c2 < warpLeftCeiling; ++c2)
+							tp[c2] = bData[c1 + c2];
+						unsigned int finalWidth(minDim - ((minDim >> 2) << 2));
+						for (unsigned int c2(finalWidth); c2 < 4; ++c2)
+							tp[warpLeftFloor].m256d_f64[c2] = 0;
+						for (unsigned int c2(0); c2 < 4; ++c2, s += minWidth4)
+						{
+#pragma unroll(4)
+							for (unsigned int c3(0); c3 < warpLeftCeiling; ++c3)
+							{
+								__m256d t = s[c3];
+								ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+							}
+						}
+					}
 					__m256d s;
 					for (unsigned int c1(0); c1 < 4; ++c1)
+					{
+						s.m256d_f64[c1] = ans[c1].m256d_f64[0];
+						s.m256d_f64[c1] += ans[c1].m256d_f64[1];
+						s.m256d_f64[c1] += ans[c1].m256d_f64[2];
+						s.m256d_f64[c1] += ans[c1].m256d_f64[3];
+					}
+					rData[c0 >> 2] = s;
+				}
+				if (c0 < height)
+				{
+					unsigned int heightLeft(height - heightFloor4);
+					__m256d ans[4] = { 0 };
+					__m256d tp[warp];
+					unsigned int c1(0);
+					for (; c1 < widthWarp; c1 += warp)
+					{
+						__m256d* s(aData + minWidth4 * c0 + c1);
+#pragma unroll(4)
+						for (unsigned int c2(0); c2 < warp; ++c2)
+							tp[c2] = bData[c1 + c2];
+						for (unsigned int c2(0); c2 < heightLeft; ++c2, s += minWidth4)
+						{
+#pragma unroll(4)
+							for (unsigned int c3(0); c3 < warp; ++c3)
+							{
+								__m256d t = s[c3];
+								ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+							}
+						}
+					}
+					if (c1 < minWidth4)
+					{
+						__m256d* s(aData + minWidth4 * c0 + c1);
+#pragma unroll(4)
+						for (unsigned int c2(0); c2 < warpLeftCeiling; ++c2)
+							tp[c2] = bData[c1 + c2];
+						unsigned int finalWidth(minDim - ((minDim >> 2) << 2));
+						for (unsigned int c2(finalWidth); c2 < 4; ++c2)
+							tp[warpLeftFloor].m256d_f64[c2] = 0;
+						for (unsigned int c2(0); c2 < heightLeft; ++c2, s += minWidth4)
+						{
+#pragma unroll(4)
+							for (unsigned int c3(0); c3 < warpLeftCeiling; ++c3)
+							{
+								__m256d t = s[c3];
+								ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+							}
+						}
+					}
+					__m256d s;
+					for (unsigned int c1(0); c1 < heightLeft; ++c1)
 					{
 						s.m256d_f64[c1] = ans[c1].m256d_f64[0];
 						s.m256d_f64[c1] += ans[c1].m256d_f64[1];
@@ -1105,5 +1187,6 @@ namespace BLAS
 	vec& vec::operator()(mat const& a, vec& b)const
 	{
 		//...
+		return b;
 	}
 }
