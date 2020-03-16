@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TestSet", "TestSet\TestSet.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SimdTest", "SimdTest\SimdTest.vcxproj", "{7BC52413-C11A-42FF-927E-4F11229F9F69}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Calculator", "Calculator\Calculator.vcxproj", "{E6BE78E7-0DBE-4219-93DA-AFE28FDA6513}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -31,6 +33,14 @@ Global
 		{7BC52413-C11A-42FF-927E-4F11229F9F69}.Release|x64.Build.0 = Release|x64
 		{7BC52413-C11A-42FF-927E-4F11229F9F69}.Release|x86.ActiveCfg = Release|Win32
 		{7BC52413-C11A-42FF-927E-4F11229F9F69}.Release|x86.Build.0 = Release|Win32
+		{E6BE78E7-0DBE-4219-93DA-AFE28FDA6513}.Debug|x64.ActiveCfg = Debug|x64
+		{E6BE78E7-0DBE-4219-93DA-AFE28FDA6513}.Debug|x64.Build.0 = Debug|x64
+		{E6BE78E7-0DBE-4219-93DA-AFE28FDA6513}.Debug|x86.ActiveCfg = Debug|Win32
+		{E6BE78E7-0DBE-4219-93DA-AFE28FDA6513}.Debug|x86.Build.0 = Debug|Win32
+		{E6BE78E7-0DBE-4219-93DA-AFE28FDA6513}.Release|x64.ActiveCfg = Release|x64
+		{E6BE78E7-0DBE-4219-93DA-AFE28FDA6513}.Release|x64.Build.0 = Release|x64
+		{E6BE78E7-0DBE-4219-93DA-AFE28FDA6513}.Release|x86.ActiveCfg = Release|Win32
+		{E6BE78E7-0DBE-4219-93DA-AFE28FDA6513}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
