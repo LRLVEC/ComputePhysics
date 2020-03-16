@@ -32,18 +32,18 @@ int main()
 	vec vecA(128 * 128);
 	vec vecB(128 * 128);
 	vec vecC(1024);
-	//vec vecD(32);
+	vec vecD(32);
 	mat matA(1024, 1024, false);
 	mat matB(1024, 1024, false);
-	//mat matC(32, 4, false);
+	mat matC(32, 4, false);
 	//mat matD(64, 3, false);
 	randomVec(vecA, mt, rd);
 	randomVec(vecB, mt, rd);
 	randomVec(vecC, mt, rd);
-	//randomVec(vecD, mt, rd);
+	randomVec(vecD, mt, rd);
 	randomMat(matA, mt, rd);
 	randomMat(matB, mt, rd);
-	//randomMat(matC, mt, rd);
+	randomMat(matC, mt, rd);
 
 	//vec
 	{
@@ -147,14 +147,14 @@ int main()
 	//timer.end();
 	//timer.print("mat mult vec:");
 
-	//timer.begin();
-	//vec vecE(matC(vecD));
-	//timer.end();
-	//timer.print("mat mult vec:");
+	timer.begin();
+	vec vecE(matC(vecD));
+	timer.end();
+	timer.print("mat mult vec:");
 
-	//matC.printToTxt("./matC.txt");
-	//vecD.printToTxt("./vecD.txt");
-	//vecE.printToTxt("./vecE.txt");
+	matC.printToTxt("./matC.txt");
+	vecD.printToTxt("./vecD.txt");
+	vecE.printToTxt("./vecE.txt");
 	//matD.printToTxt("./matD.txt");
 	//matE.printToTxt("./matE.txt");
 }

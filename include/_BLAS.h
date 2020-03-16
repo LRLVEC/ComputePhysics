@@ -407,6 +407,7 @@ namespace BLAS
 		}
 		//non-in-situ mult mat
 		vec operator()(mat const& a)const;
+		vec& operator()(mat const& a, vec& b)const;
 
 		//norm
 		double norm1()const
@@ -1100,5 +1101,9 @@ namespace BLAS
 			return r;
 		}
 		return vec();
+	}
+	vec& vec::operator()(mat const& a, vec& b)const
+	{
+		//...
 	}
 }
