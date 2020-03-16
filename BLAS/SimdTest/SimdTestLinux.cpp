@@ -85,15 +85,15 @@ void matMultvec(double* a, double* b, double* c, unsigned int widthA,
 					}
 				}
 			}
-			__m256d s;
+			__m256d gg;
 			for (unsigned int c1(0); c1 < 4; ++c1)
 			{
-				s.m256d_f64[c1] = ans[c1].m256d_f64[0];
-				s.m256d_f64[c1] += ans[c1].m256d_f64[1];
-				s.m256d_f64[c1] += ans[c1].m256d_f64[2];
-				s.m256d_f64[c1] += ans[c1].m256d_f64[3];
+				gg[c1] = ans[c1][0];
+				gg[c1] += ans[c1][1];
+				gg[c1] += ans[c1][2];
+				gg[c1] += ans[c1][3];
 			}
-			rData[c0 >> 2] = s;
+			rData[c0 >> 2] = gg;
 		}
 	}
 }
@@ -109,7 +109,7 @@ int main()
 	double* matB((double*)_mm_malloc(l * sizeof(double), 32));
 	double* matC((double*)_mm_malloc(l * sizeof(double), 32));
 
-	Timer timer;
+	//Timer timer;
 
 
 	randomIt(vecA, 1024, mt, rd);
