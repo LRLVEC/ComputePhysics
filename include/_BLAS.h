@@ -1084,13 +1084,12 @@ namespace BLAS
 					tp[3] = { b,b,b,b };
 					__m256d* s(aData + width4 * c1 + c0);
 #pragma unroll(4)
-					for (unsigned int c2(0); c2 < warp; ++c2, ++s)
+					for (unsigned int c2(0); c2 < 4; ++c2)
 					{
 #pragma unroll(4)
-						for (unsigned int c3(0); c3 < 4; ++c3)
+						for (unsigned int c3(0); c3 < warp; ++c3)
 						{
-							__m256d t = s[c3 * width4];
-							ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+							ans[c3] = _mm256_fmadd_pd(s[c2 * width4 + c3], tp[c2], ans[c3]);
 						}
 					}
 				}
