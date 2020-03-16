@@ -148,7 +148,7 @@ int main()
 	//timer.print("mat mult vec:");
 
 	timer.begin();
-	vec vecE(matC(vecD));
+	vec vecE(matA(vecD));
 	timer.end();
 	timer.print("mat mult vec:");
 
