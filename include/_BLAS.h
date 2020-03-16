@@ -481,7 +481,7 @@ namespace BLAS
 		}
 		void printToTxt(char const* name)const
 		{
-			//in the form of Mathematica matrix
+			//in the form of Mathematica matrix (paste)
 			if (data)
 			{
 				FILE* temp(::fopen(name, "w+"));
@@ -489,6 +489,17 @@ namespace BLAS
 				for (unsigned int c0(0); c0 < dim - 1; ++c0)
 					::fprintf(temp, "{%.8f}, ", data[c0]);
 				::fprintf(temp, "{%.8f}}\n", data[dim - 1]);
+				::fclose(temp);
+			}
+		}
+		void printToTableTxt(char const* name)const
+		{
+			//in the form of Mathematica matrix (table)
+			if (data)
+			{
+				FILE* temp(::fopen(name, "w+"));
+				for (unsigned int c0(0); c0 < dim; ++c0)
+					::fprintf(temp, "%.8f ", data[c0]);
 				::fclose(temp);
 			}
 		}
@@ -1231,15 +1242,19 @@ namespace BLAS
 				for (unsigned int c1(0); c1 < a.width; ++c1)
 					r.data[c1] += data[c0] * a.data[c0 * a.width4d + c1];*/
 			constexpr unsigned int warp = 16;
-			unsigned int width4((a.width - 1) / 4 + 1);
+			unsigned int width4(a.width4d >> 2);
+			unsigned int widthWarpFloor((width4 / warp) * warp);
+			unsigned int minDim4Floor(minDim & -2);
 			__m256d* aData((__m256d*)a.data);
 			__m256d* rData((__m256d*)r.data);
-			for (unsigned int c0(0); c0 < width4; c0 += warp)
+			unsigned int c0(0);
+			for (; c0 < widthWarpFloor; c0 += warp)
 			{
 				__m256d ans[warp] = { 0 };
-				for (unsigned int c1(0); c1 < minDim; c1 += 4)
+				unsigned int c1(0);
+				__m256d tp[4];
+				for (; c1 < minDim4Floor; c1 += 4)
 				{
-					__m256d tp[4];
 					double b = data[c1];
 					tp[0] = { b,b,b,b };
 					b = data[c1 + 1];
@@ -1254,13 +1269,74 @@ namespace BLAS
 					{
 #pragma unroll(4)
 						for (unsigned int c3(0); c3 < warp; ++c3)
-						{
 							ans[c3] = _mm256_fmadd_pd(s[c2 * width4 + c3], tp[c2], ans[c3]);
-						}
+					}
+				}
+				if (c1 < minDim)
+				{
+					unsigned int deltaMinDim(minDim - c1);
+					for (unsigned int c2(0); c2 < deltaMinDim; ++c2)
+					{
+						double b = data[c1 + c2];
+						tp[c2] = { b,b,b,b };
+					}
+					__m256d* s(aData + width4 * c1 + c0);
+#pragma unroll(4)
+					for (unsigned int c2(0); c2 < deltaMinDim; ++c2)
+					{
+#pragma unroll(4)
+						for (unsigned int c3(0); c3 < warp; ++c3)
+							ans[c3] = _mm256_fmadd_pd(s[c2 * width4 + c3], tp[c2], ans[c3]);
 					}
 				}
 #pragma unroll(4)
 				for (unsigned int c3(0); c3 < warp; ++c3)
+					rData[c0 + c3] = ans[c3];
+			}
+			if (c0 < a.width4d)
+			{
+				unsigned int warpLeft(width4 - widthWarpFloor);
+				__m256d ans[warp] = { 0 };
+				unsigned int c1(0);
+				__m256d tp[4];
+				for (; c1 < minDim4Floor; c1 += 4)
+				{
+					double b = data[c1];
+					tp[0] = { b,b,b,b };
+					b = data[c1 + 1];
+					tp[1] = { b,b,b,b };
+					b = data[c1 + 2];
+					tp[2] = { b,b,b,b };
+					b = data[c1 + 3];
+					tp[3] = { b,b,b,b };
+					__m256d* s(aData + width4 * c1 + c0);
+#pragma unroll(4)
+					for (unsigned int c2(0); c2 < 4; ++c2)
+					{
+#pragma unroll(4)
+						for (unsigned int c3(0); c3 < warpLeft; ++c3)
+							ans[c3] = _mm256_fmadd_pd(s[c2 * width4 + c3], tp[c2], ans[c3]);
+					}
+				}
+				if (c1 < minDim)
+				{
+					unsigned int deltaMinDim(minDim - c1);
+					for (unsigned int c2(0); c2 < deltaMinDim; ++c2)
+					{
+						double b = data[c1 + c2];
+						tp[c2] = { b,b,b,b };
+					}
+					__m256d* s(aData + width4 * c1 + c0);
+#pragma unroll(4)
+					for (unsigned int c2(0); c2 < deltaMinDim; ++c2)
+					{
+#pragma unroll(4)
+						for (unsigned int c3(0); c3 < warpLeft; ++c3)
+							ans[c3] = _mm256_fmadd_pd(s[c2 * width4 + c3], tp[c2], ans[c3]);
+					}
+				}
+#pragma unroll(4)
+				for (unsigned int c3(0); c3 < warpLeft; ++c3)
 					rData[c0 + c3] = ans[c3];
 			}
 			return r;
