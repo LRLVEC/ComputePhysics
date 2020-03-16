@@ -148,6 +148,40 @@ namespace BLAS
 		{
 			return data[a];
 		}
+		void realloc(unsigned int _dim, bool _clear = true)
+		{
+			if (type == Type::Native && _dim)
+			{
+				if (dim)
+				{
+					double* r((double*)malloc256d(_dim));
+					memcpy64d(r, data, dim);
+					if (_clear && _dim > dim)
+						memset64d(r + dim, 0, _dim - dim);
+					_mm_free(data);
+					dim = _dim;
+				}
+				else
+				{
+					data = (double*)malloc256d(_dim);
+					if (_clear)memset64d(data, 0, _dim);
+					dim = _dim;
+				}
+			}
+		}
+		void reconstruct(unsigned int _dim, bool _clear = true)
+		{
+			if (type == Type::Native)
+			{
+				if (dim)_mm_free(data);
+				if (_dim)
+				{
+					data = (double*)malloc256d(_dim);
+					if (_clear)memset64d(data, 0, _dim);
+					dim = _dim;
+				}
+			}
+		}
 		void clearTail()
 		{
 			if (dim & 3)
@@ -609,6 +643,21 @@ namespace BLAS
 		{
 			return data[a * width4d + b];
 		}
+		void reconstruct(unsigned int _width, unsigned int _height, bool _clear = true)
+		{
+			if (type == Type::Native)
+			{
+				if (data)_mm_free(data);
+				unsigned int s(ceiling256dSize(_width, _height));
+				if (s)
+				{
+					data = (double*)malloc64d(s);
+					if (_clear)memset64d(data, 0, s);
+					width = _width;
+					height = _height;
+				}
+			}
+		}
 		//= += -= *= /=
 		mat& operator =(mat&& a)
 		{
@@ -932,11 +981,30 @@ namespace BLAS
 									for (unsigned int c2(0); c2 < warp; ++c2)
 										rData[(c0 >> 2) + c2] = ans[c2];
 								}*/
+				return (*this)(a, r);
+			}
+			return vec();
+		}
+		vec& operator()(vec const& a, vec& b)const
+		{
+			unsigned int minDim(width > a.dim ? a.dim : width);
+			if (minDim)
+			{
+				bool overflow(ceiling4(minDim) > ceiling4(b.dim));
+				if (overflow && b.type != Type::Native)return b;
+				vec const* source(&a);
+				vec r;
+				if (&b == source)
+				{
+					source = &r;
+					r = a;
+				}
+				if (overflow)b.reconstruct(minDim, false);
 				constexpr unsigned int warp = 8;
 				unsigned int minWidth4((minDim - 1) / 4 + 1);
 				__m256d* aData((__m256d*)data);
-				__m256d* bData((__m256d*)a.data);
-				__m256d* rData((__m256d*)r.data);
+				__m256d* bData((__m256d*)source->data);
+				__m256d* rData((__m256d*)b.data);
 				unsigned int heightFloor4((height >> 2) << 2);
 				unsigned int widthWarp((minWidth4 / warp) * warp);
 				unsigned int warpLeftFloor((minDim >> 2) - widthWarp);
@@ -1043,24 +1111,41 @@ namespace BLAS
 					}
 					rData[c0 >> 2] = s;
 				}
-				return r;
 			}
-			return vec();
+			return b;
 		}
 		//non-in-situ mult mat
 		mat operator()(mat const& a)const
 		{
-			if (height && a.width)
+			unsigned int minDim(width > a.height ? a.height : width);
+			if (minDim)
 			{
-				unsigned int minDim(width > a.height ? a.height : width);
 				mat r(a.width, height, false);
 				/*for (unsigned int c0(0); c0 < height; ++c0)
 					for (unsigned int c1(0); c1 < minDim; ++c1)
 						for (unsigned int c2(0); c2 < a.width; ++c2)
 							r.data[c0 * a.width + c2] += data[c0 * width4d + c1] * a.data[c1 * a.width + c2];*/
-
+				return (*this)(a,r);
+			}
+			return mat();
+		}
+		mat& operator()(mat const& a, mat& b)const
+		{
+			unsigned int minDim(width > a.height ? a.height : width);
+			if (minDim)
+			{
+				bool overflow(ceiling4(a.width, height) > b.width4d* b.height);
+				if (overflow && b.type != Type::Native)return b;
+				mat const* source(this);
+				mat r;
+				if (&b == this)
+				{
+					source = &r;
+					r = *this;
+				}
+				if (overflow)b.reconstruct(a.width, height, false);
 				__m256d* aData((__m256d*)a.data);
-				__m256d* rData((__m256d*)r.data);
+				__m256d* bData((__m256d*)b.data);
 				constexpr unsigned int warp = 16;
 				unsigned int aWidth256d(a.width4d / 4);
 				unsigned int aWidthWarpFloor(aWidth256d / warp * warp);
@@ -1077,9 +1162,9 @@ namespace BLAS
 						for (unsigned int c2(0); c2 < minDim; ++c2)
 						{
 							//__m256d t = _mm256_i32gather_pd(tempData, offset, 8);
-							double s = data[c0 * width4d + c2];
+							double s = source->data[c0 * width4d + c2];
 							__m256d tp0 = { s,s,s,s };
-							s = data[(c0 + 1) * width4d + c2];
+							s = source->data[(c0 + 1) * width4d + c2];
 							__m256d tp1 = { s,s,s,s };
 #pragma unroll(4)
 							for (unsigned int c3(0); c3 < warp; ++c3)
@@ -1092,8 +1177,8 @@ namespace BLAS
 #pragma unroll(4)
 						for (unsigned int c3(0); c3 < warp; ++c3)
 						{
-							rData[c0 * aWidth256d + c1 + c3] = ans0[c3];
-							rData[(c0 + 1) * aWidth256d + c1 + c3] = ans1[c3];
+							bData[c0 * aWidth256d + c1 + c3] = ans0[c3];
+							bData[(c0 + 1) * aWidth256d + c1 + c3] = ans1[c3];
 						}
 					}
 					if (c1 < aWidth256d)
@@ -1102,9 +1187,9 @@ namespace BLAS
 						__m256d ans1[warp] = { 0 };
 						for (unsigned int c2(0); c2 < minDim; ++c2)
 						{
-							double s = data[c0 * width4d + c2];
+							double s = source->data[c0 * width4d + c2];
 							__m256d tp0 = { s,s,s,s };
-							s = data[(c0 + 1) * width4d + c2];
+							s = source->data[(c0 + 1) * width4d + c2];
 							__m256d tp1 = { s,s,s,s };
 							for (unsigned int c3(0); c3 < warpLeft; ++c3)
 							{
@@ -1115,8 +1200,8 @@ namespace BLAS
 						}
 						for (unsigned int c3(0); c3 < warpLeft; ++c3)
 						{
-							rData[c0 * aWidth256d + c1 + c3] = ans0[c3];
-							rData[(c0 + 1) * aWidth256d + c1 + c3] = ans1[c3];
+							bData[c0 * aWidth256d + c1 + c3] = ans0[c3];
+							bData[(c0 + 1) * aWidth256d + c1 + c3] = ans1[c3];
 						}
 					}
 				}
@@ -1128,8 +1213,7 @@ namespace BLAS
 						__m256d ans0[warp] = { 0 };
 						for (unsigned int c2(0); c2 < minDim; ++c2)
 						{
-							//__m256d t = _mm256_i32gather_pd(tempData, offset, 8);
-							double s = data[c0 * width4d + c2];
+							double s = source->data[c0 * width4d + c2];
 							__m256d tp0 = { s,s,s,s };
 #pragma unroll(4)
 							for (unsigned int c3(0); c3 < warp; ++c3)
@@ -1140,14 +1224,14 @@ namespace BLAS
 						}
 #pragma unroll(4)
 						for (unsigned int c3(0); c3 < warp; ++c3)
-							rData[c0 * aWidth256d + c1 + c3] = ans0[c3];
+							bData[c0 * aWidth256d + c1 + c3] = ans0[c3];
 					}
 					if (c1 < aWidth256d)
 					{
 						__m256d ans0[warp] = { 0 };
 						for (unsigned int c2(0); c2 < minDim; ++c2)
 						{
-							double s = data[c0 * width4d + c2];
+							double s = source->data[c0 * width4d + c2];
 							__m256d tp0 = { s,s,s,s };
 							for (unsigned int c3(0); c3 < warpLeft; ++c3)
 							{
@@ -1156,12 +1240,11 @@ namespace BLAS
 							}
 						}
 						for (unsigned int c3(0); c3 < warpLeft; ++c3)
-							rData[c0 * aWidth256d + c1 + c3] = ans0[c3];
+							bData[c0 * aWidth256d + c1 + c3] = ans0[c3];
 					}
 				}
-				return r;
 			}
-			return mat();
+			return b;
 		}
 
 		void print()const
@@ -1241,12 +1324,31 @@ namespace BLAS
 			/*for (unsigned int c0(0); c0 < minDim; ++c0)
 				for (unsigned int c1(0); c1 < a.width; ++c1)
 					r.data[c1] += data[c0] * a.data[c0 * a.width4d + c1];*/
+			return (*this)(a, r);
+		}
+		return vec();
+	}
+	vec& vec::operator()(mat const& a, vec& b)const
+	{
+		unsigned int minDim(a.height > dim ? dim : a.height);
+		if (minDim)
+		{
+			bool overflow(ceiling4(minDim) > ceiling4(b.dim));
+			if (overflow && b.type != Type::Native)return b;
+			vec const* source(this);
+			vec r;
+			if (&b == this)
+			{
+				source = &r;
+				r = *this;
+			}
+			if (overflow)b.reconstruct(minDim, false);
 			constexpr unsigned int warp = 16;
 			unsigned int width4(a.width4d >> 2);
 			unsigned int widthWarpFloor((width4 / warp) * warp);
 			unsigned int minDim4Floor(minDim & -2);
 			__m256d* aData((__m256d*)a.data);
-			__m256d* rData((__m256d*)r.data);
+			__m256d* bData((__m256d*)b.data);
 			unsigned int c0(0);
 			for (; c0 < widthWarpFloor; c0 += warp)
 			{
@@ -1255,13 +1357,13 @@ namespace BLAS
 				__m256d tp[4];
 				for (; c1 < minDim4Floor; c1 += 4)
 				{
-					double b = data[c1];
+					double b = source->data[c1];
 					tp[0] = { b,b,b,b };
-					b = data[c1 + 1];
+					b = source->data[c1 + 1];
 					tp[1] = { b,b,b,b };
-					b = data[c1 + 2];
+					b = source->data[c1 + 2];
 					tp[2] = { b,b,b,b };
-					b = data[c1 + 3];
+					b = source->data[c1 + 3];
 					tp[3] = { b,b,b,b };
 					__m256d* s(aData + width4 * c1 + c0);
 #pragma unroll(4)
@@ -1277,7 +1379,7 @@ namespace BLAS
 					unsigned int deltaMinDim(minDim - c1);
 					for (unsigned int c2(0); c2 < deltaMinDim; ++c2)
 					{
-						double b = data[c1 + c2];
+						double b = source->data[c1 + c2];
 						tp[c2] = { b,b,b,b };
 					}
 					__m256d* s(aData + width4 * c1 + c0);
@@ -1291,7 +1393,7 @@ namespace BLAS
 				}
 #pragma unroll(4)
 				for (unsigned int c3(0); c3 < warp; ++c3)
-					rData[c0 + c3] = ans[c3];
+					bData[c0 + c3] = ans[c3];
 			}
 			if (c0 < a.width4d)
 			{
@@ -1301,13 +1403,13 @@ namespace BLAS
 				__m256d tp[4];
 				for (; c1 < minDim4Floor; c1 += 4)
 				{
-					double b = data[c1];
+					double b = source->data[c1];
 					tp[0] = { b,b,b,b };
-					b = data[c1 + 1];
+					b = source->data[c1 + 1];
 					tp[1] = { b,b,b,b };
-					b = data[c1 + 2];
+					b = source->data[c1 + 2];
 					tp[2] = { b,b,b,b };
-					b = data[c1 + 3];
+					b = source->data[c1 + 3];
 					tp[3] = { b,b,b,b };
 					__m256d* s(aData + width4 * c1 + c0);
 #pragma unroll(4)
@@ -1323,7 +1425,7 @@ namespace BLAS
 					unsigned int deltaMinDim(minDim - c1);
 					for (unsigned int c2(0); c2 < deltaMinDim; ++c2)
 					{
-						double b = data[c1 + c2];
+						double b = source->data[c1 + c2];
 						tp[c2] = { b,b,b,b };
 					}
 					__m256d* s(aData + width4 * c1 + c0);
@@ -1337,15 +1439,9 @@ namespace BLAS
 				}
 #pragma unroll(4)
 				for (unsigned int c3(0); c3 < warpLeft; ++c3)
-					rData[c0 + c3] = ans[c3];
+					bData[c0 + c3] = ans[c3];
 			}
-			return r;
 		}
-		return vec();
-	}
-	vec& vec::operator()(mat const& a, vec& b)const
-	{
-		//...
 		return b;
 	}
 }
