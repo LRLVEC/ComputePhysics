@@ -13,6 +13,12 @@ template<class T>void randomMat(BLAS::mat& a, std::mt19937& mt, T& rd)
 		for (unsigned int c1(0); c1 < a.width; ++c1)
 			a(c0, c1) = rd(mt);
 }
+template<class T>void randomMatL(BLAS::mat& a, std::mt19937& mt, T& rd)
+{
+	for (unsigned int c0(0); c0 < a.height; ++c0)
+		for (unsigned int c1(0); c1 < a.width && c1 <= c0; ++c1)
+			a(c0, c1) = rd(mt);
+}
 
 int main()
 {
@@ -32,9 +38,9 @@ int main()
 	vec vecA(128 * 128);
 	vec vecB(128 * 128);
 	vec vecC(1024, false);
-	//vec vecD(7, false);
+	vec vecD(1024, false);
 	mat matA(1024, 1024, false);
-	mat matB(1024, 1024, false);
+	//mat matB(1024, 1024, false);
 	//mat matC(7, 7, false);
 	//mat matD(64, 3, false);
 	randomVec(vecA, mt, rd);
@@ -42,7 +48,7 @@ int main()
 	randomVec(vecC, mt, rd);
 	//randomVec(vecD, mt, rd);
 	randomMat(matA, mt, rd);
-	randomMat(matB, mt, rd);
+	//randomMat(matB, mt, rd);
 	//randomMat(matC, mt, rd);
 
 	//vec
@@ -107,11 +113,17 @@ int main()
 	}
 
 	//mat
+
 	timer.begin();
-	for (unsigned int c0(0); c0 < 100; ++c0)
-		matA(vecC);
+	matA.solveL(vecC, vecD);
 	timer.end();
-	timer.print("mat mult vec:");
+	timer.print("mat mult mat:");
+
+	//timer.begin();
+	//for (unsigned int c0(0); c0 < 100; ++c0)
+	//	matA(vecC);
+	//timer.end();
+	//timer.print("mat mult vec:");
 
 	//timer.begin();
 	//for (unsigned int c0(0); c0 < 100; ++c0)

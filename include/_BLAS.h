@@ -1322,6 +1322,32 @@ namespace BLAS
 			}
 			return b;
 		}
+		//true blas
+		vec& solveL(vec const& a, vec& b)const
+		{
+			unsigned int minDim(height > a.dim ? a.dim : height);
+			if (!minDim)return b;
+			if (b.dim < minDim)
+			{
+				if (b.type == Type::Native)b.reconstruct(minDim, false);
+				else return b;
+			}
+			double ll(data[0]);
+			if (data && ll != 0.0)
+			{
+				b.data[0] = a.data[0] / ll;
+				unsigned int c0(1);
+				for (; c0 < minDim; ++c0)
+				{
+					ll = data[c0 * width4d + c0];
+					if (ll == 0.0)return b;
+					vec tp(data + c0 * width4d, c0, Type::Parasitic);
+					b.data[c0] = (a.data[c0] - (tp, b)) / ll;
+				}
+			}
+			return b;
+		}
+
 
 		void print()const
 		{
