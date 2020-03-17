@@ -108,6 +108,12 @@ int main()
 		timer.end();
 		::printf("vec normInf:%.4f\t", norm);
 		timer.print();
+
+		timer.begin();
+		norm = vecA.normP(3.6);
+		timer.end();
+		::printf("vec normP:%.4f\t", norm);
+		timer.print();
 	}
 
 	//mat

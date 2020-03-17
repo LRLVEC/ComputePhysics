@@ -485,8 +485,7 @@ namespace BLAS
 				/*for (unsigned int c0(0); c0 < dim; ++c0)
 					s += abs(data[c0]);*/
 				unsigned long long a((1llu << 63) - 1llu);
-				double g(*(double*)&a);
-				__m256d gg = { g,g,g,g };
+				__m256d gg = _mm256_broadcast_sd((double*)&a);
 				unsigned int dim4(dim >> 2);
 				__m256d* aData((__m256d*)data);
 				unsigned int c0(0);
@@ -536,7 +535,7 @@ namespace BLAS
 					if (s < abs(data[c0]))s = abs(data[c0]);*/
 				unsigned long long a((1llu << 63) - 1llu);
 				double g(*(double*)&a);
-				__m256d gg = { g,g,g,g };
+				__m256d gg = _mm256_broadcast_sd((double*)&a);
 				unsigned int dim4(dim >> 2);
 				__m256d* aData((__m256d*)data);
 				unsigned int c0(0);
@@ -557,10 +556,24 @@ namespace BLAS
 			if (dim && p)
 			{
 				double s(0);
-				for (unsigned int c0(0); c0 < dim; ++c0)
-				{
-					s += pow(abs(data[c0]), p);
-				}
+				/*for (unsigned int c0(0); c0 < dim; ++c0)
+					s += pow(abs(data[c0]), p);*/
+				unsigned long long a((1llu << 63) - 1llu);
+				double g(*(double*)&a);
+				__m256d gg = _mm256_broadcast_sd((double*)&a);
+				__m256d pp = _mm256_broadcast_sd(&p);
+				unsigned int dim4(dim >> 2);
+				__m256d* aData((__m256d*)data);
+				unsigned int c0(0);
+				__m256d tp = { 0 };
+				for (; c0 < dim4; ++c0)
+					tp = _mm256_add_pd(
+						_mm256_pow_pd(_mm256_and_pd(gg, aData[c0]), pp), tp);
+				for (unsigned int c1(0); c1 < 4; ++c1)
+					s += tp.m256d_f64[c1];
+				if ((c0 << 2) < dim)
+					for (unsigned int c1(c0 << 2); c1 < dim; ++c1)
+						s += pow(abs(data[c1]), p);
 				return pow(s, 1 / p);
 			}
 			return 0;
