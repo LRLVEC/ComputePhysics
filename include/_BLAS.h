@@ -507,11 +507,11 @@ namespace BLAS
 			if (dim)
 			{
 				double s(0);
-				unsigned int minDim4(dim >> 2);
+				unsigned int dim4(dim >> 2);
 				__m256d* aData((__m256d*)data);
 				unsigned int c0(0);
 				__m256d tp = { 0 };
-				for (; c0 < minDim4; ++c0)
+				for (; c0 < dim4; ++c0)
 				{
 					__m256d gg = aData[c0];
 					tp = _mm256_fmadd_pd(gg, gg, tp);
@@ -532,8 +532,22 @@ namespace BLAS
 			if (dim)
 			{
 				double s(0);
-				for (unsigned int c0(0); c0 < dim; ++c0)
-					if (s < abs(data[c0]))s = abs(data[c0]);
+				/*for (unsigned int c0(0); c0 < dim; ++c0)
+					if (s < abs(data[c0]))s = abs(data[c0]);*/
+				unsigned long long a((1llu << 63) - 1llu);
+				double g(*(double*)&a);
+				__m256d gg = { g,g,g,g };
+				unsigned int dim4(dim >> 2);
+				__m256d* aData((__m256d*)data);
+				unsigned int c0(0);
+				__m256d tp = { 0 };
+				for (; c0 < dim4; ++c0)
+					tp = _mm256_max_pd(tp, _mm256_and_pd(gg, aData[c0]));
+				for (unsigned int c1(0); c1 < 4; ++c1)
+					if (s < tp.m256d_f64[c1])s = tp.m256d_f64[c1];
+				if ((c0 << 2) < dim)
+					for (unsigned int c1(c0 << 2); c1 < dim; ++c1)
+						if (s < abs(data[c1]))s = abs(data[c1]);
 				return s;
 			}
 			return 0;
