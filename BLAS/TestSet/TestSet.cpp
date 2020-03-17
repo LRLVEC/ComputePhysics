@@ -115,9 +115,10 @@ int main()
 	//mat
 
 	timer.begin();
+	//for (unsigned int c0(0); c0 < 100; ++c0)
 	matA.solveL(vecC, vecD);
 	timer.end();
-	timer.print("mat mult mat:");
+	timer.print("solveL");
 
 	//timer.begin();
 	//for (unsigned int c0(0); c0 < 100; ++c0)
