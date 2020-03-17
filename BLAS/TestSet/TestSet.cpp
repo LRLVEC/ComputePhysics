@@ -23,16 +23,6 @@ int main()
 
 	using namespace BLAS;
 
-	{
-		unsigned long long a((1llu << 63) - 1);
-		double s(*(double*)&a);
-		__m256d g = { s,s,s,s };
-		__m256d t = { 1,-1,2,-2 };
-		t = _mm256_and_pd(t, g);
-		for (unsigned int c0(0); c0 < 4; ++c0)
-			::printf("%f\n", t.m256d_f64[c0]);
-	}
-
 	//vec ta({ 1,2 });
 	//mat tb({ {1,2},{3,4} });
 	//mat tc({ {1,2},{3,4} });
@@ -41,18 +31,18 @@ int main()
 
 	vec vecA(128 * 128);
 	vec vecB(128 * 128);
-	//vec vecC(1025, false);
+	vec vecC(1024, false);
 	//vec vecD(7, false);
-	//mat matA(129, 129, false);
-	//mat matB(129, 129, false);
+	mat matA(1024, 1024, false);
+	mat matB(1024, 1024, false);
 	//mat matC(7, 7, false);
 	//mat matD(64, 3, false);
 	randomVec(vecA, mt, rd);
 	randomVec(vecB, mt, rd);
-	//randomVec(vecC, mt, rd);
+	randomVec(vecC, mt, rd);
 	//randomVec(vecD, mt, rd);
-	//randomMat(matA, mt, rd);
-	//randomMat(matB, mt, rd);
+	randomMat(matA, mt, rd);
+	randomMat(matB, mt, rd);
 	//randomMat(matC, mt, rd);
 
 	//vec
@@ -117,11 +107,11 @@ int main()
 	}
 
 	//mat
-	//timer.begin();
-	//for (unsigned int c0(0); c0 < 100; ++c0)
-	//	matA(vecC);
-	//timer.end();
-	//timer.print("mat mult vec:");
+	timer.begin();
+	for (unsigned int c0(0); c0 < 100; ++c0)
+		matA(vecC);
+	timer.end();
+	timer.print("mat mult vec:");
 
 	//timer.begin();
 	//for (unsigned int c0(0); c0 < 100; ++c0)
