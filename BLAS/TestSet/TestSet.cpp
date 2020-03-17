@@ -23,6 +23,16 @@ int main()
 
 	using namespace BLAS;
 
+	{
+		unsigned long long a((1llu << 63) - 1);
+		double s(*(double*)&a);
+		__m256d g = { s,s,s,s };
+		__m256d t = { 1,-1,2,-2 };
+		t = _mm256_and_pd(t, g);
+		for (unsigned int c0(0); c0 < 4; ++c0)
+			::printf("%f\n", t.m256d_f64[c0]);
+	}
+
 	//vec ta({ 1,2 });
 	//mat tb({ {1,2},{3,4} });
 	//mat tc({ {1,2},{3,4} });
@@ -164,15 +174,15 @@ int main()
 	//matE.printToTableTxt("./matE.txt");
 	//matD.printToTxt("./matD.txt");
 	//matE.printToTxt("./matE.txt");
-	vecA.printToTableTxt("./vecA.txt");
-	vecB.printToTableTxt("./vecB.txt");
+	//vecA.printToTableTxt("./vecA.txt");
+	//vecB.printToTableTxt("./vecB.txt");
 
-	timer.begin();
-	vecA += vecB;
-	timer.end();
-	timer.print("vec add vec:");
+	//timer.begin();
+	//vecA += vecB;
+	//timer.end();
+	//timer.print("vec add vec:");
 
-	vecA.printToTableTxt("./vecE.txt");
+	//vecA.printToTableTxt("./vecE.txt");
 	//vecC.printToTableTxt("./vecC.txt");
 	//vecE.printToTableTxt("./vecE.txt");
 }

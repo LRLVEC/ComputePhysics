@@ -482,21 +482,29 @@ namespace BLAS
 			if (dim)
 			{
 				double s(0);
-				for (unsigned int c0(0); c0 < dim; ++c0)
-					s += abs(data[c0]);
+				/*for (unsigned int c0(0); c0 < dim; ++c0)
+					s += abs(data[c0]);*/
+				unsigned long long a((1llu << 63) - 1llu);
+				double g(*(double*)&a);
+				__m256d gg = { g,g,g,g };
+				unsigned int dim4(dim >> 2);
+				__m256d* aData((__m256d*)data);
+				unsigned int c0(0);
+				__m256d tp = { 0 };
+				for (; c0 < dim4; ++c0)
+					tp = _mm256_add_pd(tp, _mm256_and_pd(gg, aData[c0]));
+				for (unsigned int c1(0); c1 < 4; ++c1)
+					s += tp.m256d_f64[c1];
+				if ((c0 << 2) < dim)
+					for (unsigned int c1(c0 << 2); c1 < dim; ++c1)
+						s += abs(data[c1]);
 				return s;
 			}
 			return 0;
 		}
 		double norm2()const
 		{
-			if (dim)
-			{
-				double s(0);
-				for (unsigned int c0(0); c0 < dim; ++c0)
-					s += data[c0] * data[c0];
-				return sqrt(s);
-			}
+			if (dim)return sqrt((*this, *this));
 			return 0;
 		}
 		double normInf()const
@@ -1189,10 +1197,8 @@ namespace BLAS
 						for (unsigned int c2(0); c2 < minDim; ++c2)
 						{
 							//__m256d t = _mm256_i32gather_pd(tempData, offset, 8);
-							double s = source->data[c0 * width4d + c2];
-							__m256d tp0 = { s,s,s,s };
-							s = source->data[(c0 + 1) * width4d + c2];
-							__m256d tp1 = { s,s,s,s };
+							__m256d tp0 = _mm256_broadcast_sd(source->data + c0 * width4d + c2);
+							__m256d tp1 = _mm256_broadcast_sd(source->data + (c0 + 1) * width4d + c2);
 #pragma unroll(4)
 							for (unsigned int c3(0); c3 < warp; ++c3)
 							{
@@ -1214,10 +1220,8 @@ namespace BLAS
 						__m256d ans1[warp] = { 0 };
 						for (unsigned int c2(0); c2 < minDim; ++c2)
 						{
-							double s = source->data[c0 * width4d + c2];
-							__m256d tp0 = { s,s,s,s };
-							s = source->data[(c0 + 1) * width4d + c2];
-							__m256d tp1 = { s,s,s,s };
+							__m256d tp0 = _mm256_broadcast_sd(source->data + c0 * width4d + c2);
+							__m256d tp1 = _mm256_broadcast_sd(source->data + (c0 + 1) * width4d + c2);
 							for (unsigned int c3(0); c3 < warpLeft; ++c3)
 							{
 								__m256d b = aData[aWidth256d * c2 + c1 + c3];
@@ -1240,8 +1244,7 @@ namespace BLAS
 						__m256d ans0[warp] = { 0 };
 						for (unsigned int c2(0); c2 < minDim; ++c2)
 						{
-							double s = source->data[c0 * width4d + c2];
-							__m256d tp0 = { s,s,s,s };
+							__m256d tp0 = _mm256_broadcast_sd(source->data + c0 * width4d + c2);
 #pragma unroll(4)
 							for (unsigned int c3(0); c3 < warp; ++c3)
 							{
@@ -1258,8 +1261,7 @@ namespace BLAS
 						__m256d ans0[warp] = { 0 };
 						for (unsigned int c2(0); c2 < minDim; ++c2)
 						{
-							double s = source->data[c0 * width4d + c2];
-							__m256d tp0 = { s,s,s,s };
+							__m256d tp0 = _mm256_broadcast_sd(source->data + c0 * width4d + c2);
 							for (unsigned int c3(0); c3 < warpLeft; ++c3)
 							{
 								__m256d b = aData[aWidth256d * c2 + c1 + c3];
@@ -1384,14 +1386,10 @@ namespace BLAS
 				__m256d tp[4];
 				for (; c1 < minDim4Floor; c1 += 4)
 				{
-					double b = source->data[c1];
-					tp[0] = { b,b,b,b };
-					b = source->data[c1 + 1];
-					tp[1] = { b,b,b,b };
-					b = source->data[c1 + 2];
-					tp[2] = { b,b,b,b };
-					b = source->data[c1 + 3];
-					tp[3] = { b,b,b,b };
+					tp[0] = _mm256_broadcast_sd(source->data + c1);
+					tp[1] = _mm256_broadcast_sd(source->data + c1 + 1);
+					tp[2] = _mm256_broadcast_sd(source->data + c1 + 2);
+					tp[3] = _mm256_broadcast_sd(source->data + c1 + 3);
 					__m256d* s(aData + width4 * c1 + c0);
 #pragma unroll(4)
 					for (unsigned int c2(0); c2 < 4; ++c2)
@@ -1430,14 +1428,10 @@ namespace BLAS
 				__m256d tp[4];
 				for (; c1 < minDim4Floor; c1 += 4)
 				{
-					double b = source->data[c1];
-					tp[0] = { b,b,b,b };
-					b = source->data[c1 + 1];
-					tp[1] = { b,b,b,b };
-					b = source->data[c1 + 2];
-					tp[2] = { b,b,b,b };
-					b = source->data[c1 + 3];
-					tp[3] = { b,b,b,b };
+					tp[0] = _mm256_broadcast_sd(source->data + c1);
+					tp[1] = _mm256_broadcast_sd(source->data + c1 + 1);
+					tp[2] = _mm256_broadcast_sd(source->data + c1 + 2);
+					tp[3] = _mm256_broadcast_sd(source->data + c1 + 3);
 					__m256d* s(aData + width4 * c1 + c0);
 #pragma unroll(4)
 					for (unsigned int c2(0); c2 < 4; ++c2)
