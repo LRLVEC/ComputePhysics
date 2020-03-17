@@ -178,7 +178,7 @@ int main()
 	//timer.print("mat mult vec:");
 
 
-	//matA.printToTableTxt("./matA.txt");
+	matA.printToTableTxt("./matA.txt");
 	//matB.printToTableTxt("./matB.txt");
 	//matE.printToTableTxt("./matE.txt");
 	//matD.printToTxt("./matD.txt");
@@ -191,7 +191,7 @@ int main()
 	//timer.end();
 	//timer.print("vec add vec:");
 
-	//vecA.printToTableTxt("./vecE.txt");
-	//vecC.printToTableTxt("./vecC.txt");
+	vecC.printToTableTxt("./vecC.txt");
+	vecD.printToTableTxt("./vecD.txt");
 	//vecE.printToTableTxt("./vecE.txt");
 }
