@@ -504,8 +504,28 @@ namespace BLAS
 		}
 		double norm2()const
 		{
-			if (dim)return sqrt((*this, *this));
-			return 0;
+			if (dim)
+			{
+				double s(0);
+				unsigned int minDim4(dim >> 2);
+				__m256d* aData((__m256d*)data);
+				unsigned int c0(0);
+				__m256d tp = { 0 };
+				for (; c0 < minDim4; ++c0)
+				{
+					__m256d gg = aData[c0];
+					tp = _mm256_fmadd_pd(gg, gg, tp);
+				}
+				if ((c0 << 2) < dim)
+					for (unsigned int c1(c0 << 2); c1 < dim; ++c1)
+						s += data[c1] * data[c1];
+				s += tp.m256d_f64[0];
+				s += tp.m256d_f64[1];
+				s += tp.m256d_f64[2];
+				s += tp.m256d_f64[3];
+				return sqrt(s);
+			}
+			else return 0;
 		}
 		double normInf()const
 		{
