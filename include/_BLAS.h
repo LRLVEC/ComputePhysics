@@ -258,8 +258,18 @@ namespace BLAS
 		{
 			if (a.dim && dim)
 			{
-				for (unsigned int c0(0); c0 < (dim > a.dim ? a.dim : dim); ++c0)
-					data[c0] += a.data[c0];
+				unsigned int minDim(dim > a.dim ? a.dim : dim);
+				/*for (unsigned int c0(0); c0 < minDim; ++c0)
+					data[c0] += a.data[c0];*/
+				unsigned int minDim4(minDim >> 2);
+				__m256d* aData((__m256d*)data);
+				__m256d* bData((__m256d*)a.data);
+				unsigned int c0(0);
+				for (; c0 < minDim4; ++c0)
+					aData[c0] = _mm256_add_pd(aData[c0], bData[c0]);
+				if ((c0 << 2) < minDim)
+					for (unsigned int c1(c0 << 2); c1 < minDim; ++c1)
+						data[c1] += a.data[c1];
 			}
 			return *this;
 		}
@@ -1125,7 +1135,7 @@ namespace BLAS
 					for (unsigned int c1(0); c1 < minDim; ++c1)
 						for (unsigned int c2(0); c2 < a.width; ++c2)
 							r.data[c0 * a.width + c2] += data[c0 * width4d + c1] * a.data[c1 * a.width + c2];*/
-				return (*this)(a,r);
+				return (*this)(a, r);
 			}
 			return mat();
 		}

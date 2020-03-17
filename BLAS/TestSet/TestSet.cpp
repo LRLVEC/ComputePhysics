@@ -33,16 +33,16 @@ int main()
 	vec vecB(128 * 128);
 	//vec vecC(1025, false);
 	//vec vecD(7, false);
-	mat matA(129, 129, false);
-	mat matB(129, 129, false);
+	//mat matA(129, 129, false);
+	//mat matB(129, 129, false);
 	//mat matC(7, 7, false);
 	//mat matD(64, 3, false);
 	randomVec(vecA, mt, rd);
 	randomVec(vecB, mt, rd);
 	//randomVec(vecC, mt, rd);
 	//randomVec(vecD, mt, rd);
-	randomMat(matA, mt, rd);
-	randomMat(matB, mt, rd);
+	//randomMat(matA, mt, rd);
+	//randomMat(matB, mt, rd);
 	//randomMat(matC, mt, rd);
 
 	//vec
@@ -70,6 +70,9 @@ int main()
 			vecA /= vecB;
 		timer.end();
 		timer.print("vec div:");
+
+		randomVec(vecA, mt, rd);
+		randomVec(vecB, mt, rd);
 
 		timer.begin();
 		double dots;
@@ -135,10 +138,10 @@ int main()
 	timer.end();
 	timer.print("mat div:");*/
 
-	timer.begin();
-	mat matE(matA(matB));
-	timer.end();
-	timer.print("mat mult mat:");
+	//timer.begin();
+	//mat matE(matA(matB));
+	//timer.end();
+	//timer.print("mat mult mat:");
 
 	//timer.begin();
 	//vec vecE(matA(vecC));
@@ -155,11 +158,21 @@ int main()
 	//timer.end();
 	//timer.print("mat mult vec:");
 
-	matA.printToTableTxt("./matA.txt");
-	matB.printToTableTxt("./matB.txt");
-	matE.printToTableTxt("./matE.txt");
+
+	//matA.printToTableTxt("./matA.txt");
+	//matB.printToTableTxt("./matB.txt");
+	//matE.printToTableTxt("./matE.txt");
 	//matD.printToTxt("./matD.txt");
 	//matE.printToTxt("./matE.txt");
+	vecA.printToTableTxt("./vecA.txt");
+	vecB.printToTableTxt("./vecB.txt");
+
+	timer.begin();
+	vecA += vecB;
+	timer.end();
+	timer.print("vec add vec:");
+
+	vecA.printToTableTxt("./vecE.txt");
 	//vecC.printToTableTxt("./vecC.txt");
 	//vecE.printToTableTxt("./vecE.txt");
 }
