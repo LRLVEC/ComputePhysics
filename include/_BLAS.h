@@ -450,10 +450,24 @@ namespace BLAS
 		{
 			if (a.dim && dim)
 			{
+				unsigned int minDim(dim > a.dim ? a.dim : dim);
 				double s(0);
-				unsigned int l(dim > a.dim ? a.dim : dim);
-				for (unsigned int c0(0); c0 < l; ++c0)
-					s += data[c0] * a.data[c0];
+				/*for (unsigned int c0(0); c0 < minDim; ++c0)
+					s += data[c0] * a.data[c0];*/
+				unsigned int minDim4(minDim >> 2);
+				__m256d* aData((__m256d*)data);
+				__m256d* bData((__m256d*)a.data);
+				unsigned int c0(0);
+				__m256d tp = { 0 };
+				for (; c0 < minDim4; ++c0)
+					tp = _mm256_fmadd_pd(aData[c0], bData[c0], tp);
+				if ((c0 << 2) < minDim)
+					for (unsigned int c1(c0 << 2); c1 < minDim; ++c1)
+						s += data[c1] * a.data[c1];
+				s += tp.m256d_f64[0];
+				s += tp.m256d_f64[1];
+				s += tp.m256d_f64[2];
+				s += tp.m256d_f64[3];
 				return s;
 			}
 			else return 0;
