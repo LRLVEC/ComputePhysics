@@ -348,6 +348,27 @@ namespace BLAS
 			}
 			return *this;
 		}
+		//vecA = a * vecB + vecA
+		vec& fmadd(double a, vec const& b)
+		{
+			if (b.dim && dim)
+			{
+				unsigned int minDim(dim > b.dim ? b.dim : dim);
+				/*for (unsigned int c0(0); c0 < minDim; ++c0)
+					data[c0] += a * b.data[c0];*/
+				unsigned int minDim4(minDim >> 2);
+				__m256d* aData((__m256d*)data);
+				__m256d* bData((__m256d*)b.data);
+				unsigned int c0(0);
+				__m256d tp = _mm256_broadcast_sd(&a);
+				for (; c0 < minDim4; ++c0)
+					aData[c0] = _mm256_fmadd_pd(tp, bData[c0], aData[c0]);
+				if ((c0 << 2) < minDim)
+					for (unsigned int c1(c0 << 2); c1 < minDim; ++c1)
+						data[c1] += a * b.data[c1];
+			}
+			return *this;
+		}
 		//+-*/
 		vec operator+(vec const& a)const
 		{
@@ -471,6 +492,13 @@ namespace BLAS
 				return s;
 			}
 			else return 0;
+		}
+		//normalize
+		vec& normalize()
+		{
+			double s(this->norm2());
+			if (s)(*this) *= 1 / s;
+			return *this;
 		}
 		//non-in-situ mult mat
 		vec operator()(mat const& a)const;
@@ -603,19 +631,19 @@ namespace BLAS
 				FILE* temp(::fopen(name, "w+"));
 				::fprintf(temp, "{");
 				for (unsigned int c0(0); c0 < dim - 1; ++c0)
-					::fprintf(temp, "{%.8f}, ", data[c0]);
-				::fprintf(temp, "{%.8f}}\n", data[dim - 1]);
+					::fprintf(temp, "{%.16e}, ", data[c0]);
+				::fprintf(temp, "{%.16e}}\n", data[dim - 1]);
 				::fclose(temp);
 			}
 		}
-		void printToTableTxt(char const* name)const
+		void printToTableTxt(char const* name, bool _inRow)const
 		{
 			//in the form of Mathematica matrix (table)
 			if (data)
 			{
 				FILE* temp(::fopen(name, "w+"));
 				for (unsigned int c0(0); c0 < dim; ++c0)
-					::fprintf(temp, "%.8f ", data[c0]);
+					::fprintf(temp, _inRow ? "%.16e " : "%.16e\n", data[c0]);
 				::fclose(temp);
 			}
 		}
@@ -721,9 +749,9 @@ namespace BLAS
 		{
 			return data[a];
 		}
-		template<class T, class R>inline double& operator() (T a, R b)
+		inline double& operator() (unsigned int a, unsigned int b)
 		{
-			return data[a * width4d + b];
+			return data[unsigned long long(a) * width4d + b];
 		}
 		void reconstruct(unsigned int _width, unsigned int _height, bool _clear = true)
 		{
@@ -1323,6 +1351,23 @@ namespace BLAS
 			return b;
 		}
 		//true blas
+		mat& schmidtOrtho()
+		{
+			if (data && width == height)
+			{
+				for (unsigned int c0(0); c0 < height; ++c0)
+				{
+					vec tp(data + width4d * c0, width, Type::Parasitic);
+					for (unsigned int c1(0); c1 < c0; ++c1)
+					{
+						vec ts(data + width4d * c1, width, Type::Parasitic);
+						tp.fmadd(-(tp, ts), ts);
+					}
+					tp.normalize();
+				}
+			}
+			return *this;
+		}
 		vec& solveL(vec const& a, vec& b)const
 		{
 			unsigned int minDim(height > a.dim ? a.dim : height);
@@ -1333,7 +1378,7 @@ namespace BLAS
 				else return b;
 			}
 			double ll(data[0]);
-			if (data && ll != 0.0)
+			if (ll != 0.0)
 			{
 				b.data[0] = a.data[0] / ll;
 				unsigned int c0(1);
@@ -1346,6 +1391,70 @@ namespace BLAS
 				}
 			}
 			return b;
+		}
+		vec& solveU(vec const& a, vec& b)const
+		{
+			unsigned int minDim(height > a.dim ? a.dim : height);
+			if (!minDim)return b;
+			if (b.dim < minDim)
+			{
+				if (b.type == Type::Native)b.reconstruct(minDim, false);
+				else return b;
+			}
+			double ll(data[(minDim - 1) * (width4d + 1)]);
+			if (ll != 0.0)
+			{
+				int c0(minDim - 1);
+				b.data[c0] = a.data[c0] / ll;
+				--c0;
+				for (; c0 >= 0; --c0)
+				{
+					ll = data[c0 * width4d + c0];
+					if (ll == 0.0)return b;
+					unsigned int c04(ceiling4(c0 + 1));
+					if (minDim < c04)c04 = minDim;
+					double s(0);
+					for (unsigned int c1(c0 + 1); c1 < c04; ++c1)
+						s += data[c0 * width4d + c1] * b.data[c1];
+					if (c04 < minDim)
+					{
+						vec tp(data + c0 * width4d + c04, minDim - c04, Type::Parasitic);
+						vec tpb(b.data + c04, minDim - c04, Type::Parasitic);
+						s += (tp, tpb);
+					}
+					b.data[c0] = (a.data[c0] - s) / ll;
+				}
+			}
+			return b;
+		}
+		vec& solveGauss(vec& a, vec& b)
+		{
+			//no column principal
+			unsigned int minDim(height > a.dim ? a.dim : height);
+			if (!minDim)return b;
+			if (b.dim < minDim)
+			{
+				if (b.type == Type::Native)b.reconstruct(minDim, false);
+				else return b;
+			}
+			for (int c0(minDim - 1); c0 > 0; --c0)
+			{
+				double ll(data[c0 * width4d + c0]);
+				if (ll == 0.0)return b;
+				ll = -1 / ll;
+				double aa(a.data[c0]);
+				vec tp(data + c0 * width4d, c0, Type::Parasitic);
+				for (int c1(c0 - 1); c1 >= 0; --c1)
+				{
+					double le(data[c1 * width4d + c0] * ll);
+					if (le == 0.0)continue;
+					vec ts(data + c1 * width4d, c0, Type::Parasitic);
+					ts.fmadd(le, tp);
+					a.data[c1] += le * aa;
+					//data[c1 * width4d + c0] = 0;
+				}
+			}
+			return solveL(a, b);
 		}
 
 
@@ -1388,14 +1497,14 @@ namespace BLAS
 				::fprintf(temp, "{\n");
 				for (unsigned int c0(0); c0 < height - 1; ++c0)
 				{
-					::fprintf(temp, "{%.8f", data[width4d * c0]);
+					::fprintf(temp, "{%.16e", data[width4d * c0]);
 					for (unsigned int c1(1); c1 < width; ++c1)
-						::fprintf(temp, ", %.8f", data[width4d * c0 + c1]);
+						::fprintf(temp, ", %.16e", data[width4d * c0 + c1]);
 					::fprintf(temp, "},\n");
 				}
-				::fprintf(temp, "{%.8f", data[width4d * (height - 1)]);
+				::fprintf(temp, "{%.16e", data[width4d * (height - 1)]);
 				for (unsigned int c1(1); c1 < width; ++c1)
-					::fprintf(temp, ", %.8f", data[width4d * (height - 1) + c1]);
+					::fprintf(temp, ", %.16e", data[width4d * (height - 1) + c1]);
 				::fprintf(temp, "}\n}");
 				::fclose(temp);
 			}
@@ -1409,7 +1518,7 @@ namespace BLAS
 				for (unsigned int c0(0); c0 < height; ++c0)
 				{
 					for (unsigned int c1(0); c1 < width; ++c1)
-						::fprintf(temp, "%.8f ", data[width4d * c0 + c1]);
+						::fprintf(temp, "%.16e ", data[width4d * c0 + c1]);
 					::fprintf(temp, "\n");
 				}
 			}
