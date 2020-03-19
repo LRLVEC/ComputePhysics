@@ -631,8 +631,8 @@ namespace BLAS
 				FILE* temp(::fopen(name, "w+"));
 				::fprintf(temp, "{");
 				for (unsigned int c0(0); c0 < dim - 1; ++c0)
-					::fprintf(temp, "{%.16e}, ", data[c0]);
-				::fprintf(temp, "{%.16e}}\n", data[dim - 1]);
+					::fprintf(temp, "{%.14e}, ", data[c0]);
+				::fprintf(temp, "{%.14e}}\n", data[dim - 1]);
 				::fclose(temp);
 			}
 		}
@@ -643,7 +643,7 @@ namespace BLAS
 			{
 				FILE* temp(::fopen(name, "w+"));
 				for (unsigned int c0(0); c0 < dim; ++c0)
-					::fprintf(temp, _inRow ? "%.16e " : "%.16e\n", data[c0]);
+					::fprintf(temp, _inRow ? "%.14e " : "%.14e\n", data[c0]);
 				::fclose(temp);
 			}
 		}
@@ -1456,7 +1456,39 @@ namespace BLAS
 			}
 			return solveL(a, b);
 		}
-
+		vec& solveJacobiIter(vec& a, vec& b, double eps)const
+		{
+			unsigned int minDim(height > a.dim ? a.dim : height);
+			vec irll(minDim, false);
+			vec ll(minDim, false);
+			vec b0(b.data, minDim, Type::Parasitic);
+			vec b1(minDim, false);
+			vec delta(minDim, false);
+			b0 = a;
+			for (unsigned int c0(0); c0 < minDim; ++c0)
+				irll.data[c0] = -data[c0 * width4d + c0];
+			for (unsigned int c0(0); c0 < 100; ++c0)
+			{
+				for (unsigned int c1(0); c1 < 5; ++c1)
+				{
+					(*this)(b0, b1);
+					b1 -= a;
+					b1 *= irll;
+					b1 += b0;
+					(*this)(b1, b0);
+					b0 -= a;
+					b0 *= irll;
+					b0 += b1;
+				}
+				delta = b1; delta -= b0;
+				if (delta.norm1() < eps)
+				{
+					::printf("iters:\t%d\n", c0 * 10);
+					return b;
+				}
+			}
+			return b;
+		}
 
 		void print()const
 		{
@@ -1497,14 +1529,14 @@ namespace BLAS
 				::fprintf(temp, "{\n");
 				for (unsigned int c0(0); c0 < height - 1; ++c0)
 				{
-					::fprintf(temp, "{%.16e", data[width4d * c0]);
+					::fprintf(temp, "{%.14e", data[width4d * c0]);
 					for (unsigned int c1(1); c1 < width; ++c1)
-						::fprintf(temp, ", %.16e", data[width4d * c0 + c1]);
+						::fprintf(temp, ", %.14e", data[width4d * c0 + c1]);
 					::fprintf(temp, "},\n");
 				}
-				::fprintf(temp, "{%.16e", data[width4d * (height - 1)]);
+				::fprintf(temp, "{%.14e", data[width4d * (height - 1)]);
 				for (unsigned int c1(1); c1 < width; ++c1)
-					::fprintf(temp, ", %.16e", data[width4d * (height - 1) + c1]);
+					::fprintf(temp, ", %.14e", data[width4d * (height - 1) + c1]);
 				::fprintf(temp, "}\n}");
 				::fclose(temp);
 			}
@@ -1518,7 +1550,7 @@ namespace BLAS
 				for (unsigned int c0(0); c0 < height; ++c0)
 				{
 					for (unsigned int c1(0); c1 < width; ++c1)
-						::fprintf(temp, "%.16e ", data[width4d * c0 + c1]);
+						::fprintf(temp, "%.14e ", data[width4d * c0 + c1]);
 					::fprintf(temp, "\n");
 				}
 			}

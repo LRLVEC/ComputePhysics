@@ -20,7 +20,7 @@ template<class T>void randomMatGood(BLAS::mat& a, std::mt19937& mt, T& rd)
 		unsigned int c1(0);
 		for (; c1 < a.width && c1 < c0; ++c1)
 			a(c0, c1) = 0.1 * rd(mt);
-		a(c0, c1++) = 1;
+		a(c0, c1++) = 1 + 0.01 * rd(mt);
 		for (; c1 < a.width; ++c1)
 			a(c0, c1) = 0.1 * rd(mt);
 	}
@@ -32,7 +32,7 @@ template<class T>void randomMatL(BLAS::mat& a, std::mt19937& mt, T& rd)
 		unsigned int c1(0);
 		for (; c1 < a.width && c1 < c0; ++c1)
 			a(c0, c1) = 0.1 * rd(mt);
-		a(c0, c1++) = 1;
+		a(c0, c1++) = 1 + 0.2 * rd(mt);
 		for (; c1 < a.width; ++c1)
 			a(c0, c1) = 0;
 	}
@@ -44,7 +44,7 @@ template<class T>void randomMatU(BLAS::mat& a, std::mt19937& mt, T& rd)
 		unsigned int c1(0);
 		for (; c1 < a.width && c1 < c0; ++c1)
 			a(c0, c1) = 0;
-		a(c0, c1++) = 1;
+		a(c0, c1++) = 1 + 0.2 * rd(mt);
 		for (; c1 < a.width; ++c1)
 			a(c0, c1) = 0.1 * rd(mt);
 	}
@@ -82,10 +82,10 @@ int main()
 	vec vecA(128 * 128);
 	vec vecB(128 * 128);
 
-	vec vecC(1024, false);
-	vec vecD(1024, false);
-	vec vecE(1024, false);
-	mat matA(1024, 1024, false);
+	vec vecC(512, false);
+	vec vecD(512, false);
+	vec vecE(512, false);
+	mat matA(512, 512, false);
 	//mat matB(1024, 1024, false);
 	//mat matC(7, 7, false);
 	//mat matD(64, 3, false);
@@ -166,21 +166,20 @@ int main()
 
 	//mat
 
-	//matA.schmidtOrtho();
 	matA(vecE, vecC);
-	matA.printToTableTxt("./matA.txt");
-	vecC.printToTableTxt("./vecC.txt", false);
-	vecE.printToTableTxt("./vecE.txt", false);
+	//matA.printToTableTxt("./matA.txt");
+	//vecC.printToTableTxt("./vecC.txt", false);
+	//vecE.printToTableTxt("./vecE.txt", false);
 
 	timer.begin();
-	matA.solveGauss(vecC, vecD);
+	matA.solveJacobiIter(vecC, vecD, 1e-5);
 	timer.end();
 
 	vec delta(vecE - vecD);
-	::printf("solveL delta norm:%e \t", delta.norm2());
+	::printf("solveJacobiIter delta norm:%e \t", delta.norm2());
 	timer.print();
-	vecD.printToTableTxt("./vecD.txt", false);
-	delta.printToTableTxt("./delta.txt", false);
+	//vecD.printToTableTxt("./vecD.txt", false);
+	//delta.printToTableTxt("./delta.txt", false);
 
 	//timer.begin();
 	//for (unsigned int c0(0); c0 < 100; ++c0)
@@ -257,3 +256,6 @@ int main()
 	//vecE.printToTableTxt("./vecD.txt", false);
 	//vecE.printToTableTxt("./vecE.txt");
 }
+/*matA := Import["D:\\files\\C++\\ComputePhysics\\BLAS\\TestSet\\matA.txt", "Table"];
+vecC := Import["D:\\files\\C++\\ComputePhysics\\BLAS\\TestSet\\vecC.txt", "Table"];
+vecD := Import["D:\\files\\C++\\ComputePhysics\\BLAS\\TestSet\\vecD.txt", "Table"]*/
