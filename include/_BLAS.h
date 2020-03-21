@@ -785,6 +785,13 @@ namespace BLAS
 				height = _height;
 				width4d = ceiling4(_halfBandWidth);
 			}
+			else if (_type == MatType::BandMat && _height)
+			{
+				data = malloc256d(2 * _halfBandWidth + 4, _height);
+				halfBandWidth = _halfBandWidth;
+				height = _height;
+				width4d = ceiling4(2 * _halfBandWidth + 4);
+			}
 			else if ((_type == MatType::LBandMat || _type == MatType::UBandMat) && _height)
 			{
 				data = malloc256d(_halfBandWidth + 4, _height);
@@ -877,6 +884,16 @@ namespace BLAS
 		{
 			return data[unsigned long long(a) * width4d + b];
 		}
+		inline double  BandEle(unsigned int a, unsigned int b)const
+		{
+			if (a <= halfBandWidth)return data[a * width4d + b];
+			else return data[a * width4d + b - (int(a - halfBandWidth) / 4) * 4];
+		}
+		inline double& BandEleRef(unsigned int a, unsigned int b)
+		{
+			if (a <= halfBandWidth)return data[a * width4d + b];
+			else return data[a * width4d + b - (int(a - halfBandWidth) / 4) * 4];
+		}
 		inline double  LBandEle(unsigned int a, unsigned int b)const
 		{
 			if (a <= halfBandWidth)return data[a * width4d + b];
@@ -895,6 +912,11 @@ namespace BLAS
 		{
 			return data[a * width4d + b - (a & -4)];
 		}
+		inline unsigned int BandBeginOffset(unsigned int a)const
+		{
+			if (a <= halfBandWidth)return 0;
+			else return a - (int(a - halfBandWidth) / 4) * 4 - halfBandWidth;
+		}
 		inline unsigned int LBandBeginOffset(unsigned int a)const
 		{
 			if (a <= halfBandWidth)return 0;
@@ -903,6 +925,15 @@ namespace BLAS
 		inline unsigned int UBandBeginOffset(unsigned int a)const
 		{
 			return a % 4;
+		}
+		inline vec getBandRow(unsigned int a)
+		{
+			unsigned int bgn, end;
+			if (a <= halfBandWidth)bgn = 0;
+			else bgn = a - halfBandWidth;
+			if (a >= height - halfBandWidth)end = height;
+			else end = a + halfBandWidth + 1;
+			return vec(data + a * width4d + LBandBeginOffset(a), end - bgn, Type::Non32Aligened);
 		}
 		inline vec getLBandRow(unsigned int a)
 		{
@@ -913,6 +944,15 @@ namespace BLAS
 		{
 			return vec(data + a * width4d + a % 4,
 				height - a <= halfBandWidth ? height - a : halfBandWidth + 1, Type::Non32Aligened);
+		}
+		inline vec const getBandRow(unsigned int a)const
+		{
+			unsigned int bgn, end;
+			if (a <= halfBandWidth)bgn = 0;
+			else bgn = a - halfBandWidth;
+			if (a >= height - halfBandWidth)end = height;
+			else end = a + halfBandWidth + 1;
+			return vec(data + a * width4d + LBandBeginOffset(a), end - bgn, Type::Non32Aligened);
 		}
 		inline vec const getLBandRow(unsigned int a)const
 		{
@@ -1244,21 +1284,29 @@ namespace BLAS
 		}
 		vec& operator()(vec const& a, vec& b)const
 		{
-			if (matType < MatType::BandMat)
+			unsigned int w(matType < MatType::BandMat ? width : height);
+			unsigned int minDim(w > a.dim ? a.dim : w);
+			if (minDim)
 			{
-				unsigned int minDim(width > a.dim ? a.dim : width);
-				if (minDim)
+				bool overflow(ceiling4(minDim) > ceiling4(b.dim));
+				if (overflow && b.type != Type::Native)return b;
+				vec const* source(&a);
+				vec r;
+				if (&b == source)
 				{
-					bool overflow(ceiling4(minDim) > ceiling4(b.dim));
-					if (overflow && b.type != Type::Native)return b;
-					vec const* source(&a);
-					vec r;
-					if (&b == source)
-					{
-						source = &r;
-						r = a;
-					}
-					if (overflow)b.reconstruct(minDim, false);
+					source = &r;
+					r = a;
+				}
+				if (overflow)b.reconstruct(minDim, false);
+				switch (matType)
+				{
+				case MatType::NormalMat:
+				case MatType::SquareMat:
+				case MatType::DiagonalMat:
+				case MatType::SymmetricMat:
+				case MatType::LMat:
+				case MatType::UMat:
+				{
 					constexpr unsigned int warp = 8;
 					unsigned int minWidth4((minDim - 1) / 4 + 1);
 					__m256d* aData((__m256d*)data);
@@ -1370,24 +1418,21 @@ namespace BLAS
 						}
 						rData[c0 >> 2] = s;
 					}
+					break;
 				}
-			}
-			//BandMat
-			else if (matType == MatType::LBandMat)
-			{
-				unsigned int minDim(height > a.dim ? a.dim : height);
-				if (minDim)
+				case MatType::BandMat:
 				{
-					bool overflow(ceiling4(minDim) > ceiling4(b.dim));
-					if (overflow && b.type != Type::Native)return b;
-					vec const* source(&a);
-					vec r;
-					if (&b == source)
+					for (unsigned int c0(0); c0 < height; ++c0)
 					{
-						source = &r;
-						r = a;
+						vec tp(getBandRow(c0));
+						unsigned int bgn(c0 <= halfBandWidth ? 0 : c0 - halfBandWidth);
+						vec ta(a.data + bgn, tp.dim, Type::Non32Aligened);
+						b.data[c0] = (tp, ta);
 					}
-					if (overflow)b.reconstruct(minDim, false);
+					break;
+				}
+				case MatType::LBandMat:
+				{
 					for (unsigned int c0(0); c0 < height; ++c0)
 					{
 						vec tp(getLBandRow(c0));
@@ -1395,32 +1440,21 @@ namespace BLAS
 						vec ta(a.data + bgn, tp.dim, Type::Non32Aligened);
 						b.data[c0] = (tp, ta);
 					}
+					break;
 				}
-			}
-			else if (matType == MatType::UBandMat)
-			{
-				unsigned int minDim(height > a.dim ? a.dim : height);
-				if (minDim)
+				case MatType::UBandMat:
 				{
-					bool overflow(ceiling4(minDim) > ceiling4(b.dim));
-					if (overflow && b.type != Type::Native)return b;
-					vec const* source(&a);
-					vec r;
-					if (&b == source)
-					{
-						source = &r;
-						r = a;
-					}
-					if (overflow)b.reconstruct(minDim, false);
 					for (unsigned int c0(0); c0 < height; ++c0)
 					{
 						vec tp(getUBandRow(c0));
 						vec ta(a.data + c0, tp.dim, Type::Non32Aligened);
 						b.data[c0] = (tp, ta);
 					}
+					break;
 				}
+				}
+				return b;
 			}
-			return b;
 		}
 		//non-in-situ mult mat
 		mat operator()(mat const& a)const
@@ -1708,6 +1742,7 @@ namespace BLAS
 		vec& solveJacobiIter(vec const& a, vec& b, double eps)const
 		{
 			unsigned int minDim(height > a.dim ? a.dim : height);
+			if (!minDim)return b;
 			vec irll(minDim, false);
 			vec ll(minDim, false);
 			vec b0(b.data, minDim, Type::Parasitic);
@@ -1769,13 +1804,8 @@ namespace BLAS
 			solveL(a, tp);
 			solveUid(tp, b);
 		}
-		vec& solveConjugateGradient(vec const& a, vec& b, double eps)const
-		{
-			//...
-			return b;
-		}
 		//symmetric band (for LBandMat)
-		vec& solveCholeskyBand(vec const& a, vec& b)//buggy...
+		vec& solveCholeskyBand(vec const& a, vec& b)
 		{
 			unsigned int minDim(height > a.dim ? a.dim : height);
 			if (!minDim)return b;
@@ -1826,6 +1856,65 @@ namespace BLAS
 			uM.solveUid(tp, b);
 			return b;
 		}
+		vec& solveSteepestDescent(vec const& a, vec& b, double _eps)const
+		{
+			unsigned int minDim(height > a.dim ? a.dim : height);
+			if (!minDim)return b;
+			vec x0(b.data, minDim, Type::Parasitic);
+			vec r(minDim, false);
+			vec Ar(minDim, false);
+			x0 = a;
+			(*this)(x0, r);
+			r -= a;
+			for (unsigned int c0(0); c0 < 1000; ++c0)
+			{
+				(*this)(r, Ar);
+				double eps(r.norm2Square());
+				double alpha(-eps / (r, Ar));
+				x0.fmadd(alpha, r);
+				r.fmadd(alpha, Ar);
+				if (eps < _eps * _eps)
+				{
+					//::printf("iters:\t%d\n", c0);
+					return b;
+				}
+			}
+			return b;
+		}
+		vec& solveConjugateGradient(vec const& a, vec& b, double _eps)const
+		{
+			unsigned int minDim(height > a.dim ? a.dim : height);
+			if (!minDim)return b;
+			vec x0(b.data, minDim, Type::Parasitic);
+			vec r(minDim, false);
+			vec p(minDim, false);
+			vec Ap(minDim, false);
+			x0 = a;
+			(*this)(x0, r);
+			r -= a;
+			p = r;
+			for (unsigned int c0(0); c0 < 100; ++c0)
+			{
+				if (r.norm2() < _eps)
+				{
+					//::printf("iters:\t%d\n", c0 * 10);
+					return b;
+				}
+				for (unsigned int c1(0); c1 < 10; ++c1)
+				{
+					(*this)(p, Ap);
+					double d((Ap, p));
+					//double eps(r.norm2Square());
+					double alpha(-(r, p) / d);
+					x0.fmadd(alpha, p);
+					r.fmadd(alpha, Ap);
+					double beta((r, Ap) / d);
+					p *= beta;
+					p += r;
+				}
+			}
+			return b;
+		}
 
 		void print()const
 		{
@@ -1836,7 +1925,7 @@ namespace BLAS
 				{
 					::printf("\t[%.4e", data[width4d * c0]);
 					unsigned int ed(width);
-					if (matType == MatType::LBandMat || matType == MatType::UBandMat)
+					if (matType >= MatType::BandMat)
 						ed = width4d;
 					for (unsigned int c1(1); c1 < ed; ++c1)
 						::printf(", %.4e", data[width4d * c0 + c1]);

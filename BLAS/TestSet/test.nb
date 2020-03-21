@@ -1,0 +1,92 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 11.3' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      2647,         82]
+NotebookOptionsPosition[      2335,         68]
+NotebookOutlinePosition[      2694,         84]
+CellTagsIndexPosition[      2651,         81]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"mat", "=", 
+   RowBox[{"Import", "[", 
+    RowBox[{
+    "\"\<E:\\\\files\\\\C++\\\\ComputePhysics\\\\BLAS\\\\TestSet\\\\mat.txt\>\
+\"", ",", "\"\<Table\>\""}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"matCho", "=", 
+   RowBox[{"Import", "[", 
+    RowBox[{
+    "\"\<E:\\\\files\\\\C++\\\\ComputePhysics\\\\BLAS\\\\TestSet\\\\matCho.\
+txt\>\"", ",", "\"\<Table\>\""}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"matChoMMA", "=", 
+   RowBox[{"CholeskyDecomposition", "[", "mat", "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"For", "[", 
+   RowBox[{
+    RowBox[{"i", "=", "1"}], ",", 
+    RowBox[{"i", "\[LessEqual]", "8"}], ",", 
+    RowBox[{"i", "++"}], ",", 
+    RowBox[{"For", "[", 
+     RowBox[{
+      RowBox[{"j", "=", "8"}], ",", 
+      RowBox[{"j", ">=", "i"}], ",", 
+      RowBox[{"j", "--"}], ",", 
+      RowBox[{
+       RowBox[{"matChoMMA", "[", 
+        RowBox[{"[", 
+         RowBox[{"i", ",", "j"}], "]"}], "]"}], "=", 
+       RowBox[{
+        RowBox[{"matChoMMA", "[", 
+         RowBox[{"[", 
+          RowBox[{"i", ",", "j"}], "]"}], "]"}], "*", 
+        RowBox[{"matChoMMA", "[", 
+         RowBox[{"[", 
+          RowBox[{"i", ",", "i"}], "]"}], "]"}]}]}]}], "]"}]}], "]"}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Grid", "[", 
+  RowBox[{"matChoMMA", "-", "matCho"}], "]"}]}], "Input",
+ CellChangeTimes->{{3.793755962874529*^9, 3.7937560261990795`*^9}, {
+   3.7937571516739397`*^9, 3.7937571949512577`*^9}, {3.7937573058611803`*^9, 
+   3.7937573059751916`*^9}, {3.7937596363697577`*^9, 3.7937596497690716`*^9}, 
+   3.7937599932489*^9, {3.7937600499845595`*^9, 3.7937600518152485`*^9}},
+ CellLabel->"In[70]:=",ExpressionUUID->"d7de6d8d-d608-4025-894f-8666f0f0d923"]
+},
+WindowSize->{1180, 569},
+WindowMargins->{{291, Automatic}, {Automatic, 598}},
+FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (2018\:5e743\:670828\
+\:65e5)",
+StyleDefinitions->"Default.nb"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[558, 20, 1773, 46, 235, "Input",ExpressionUUID->"d7de6d8d-d608-4025-894f-8666f0f0d923"]
+}
+]
+*)
+
+(* End of internal cache information *)
+

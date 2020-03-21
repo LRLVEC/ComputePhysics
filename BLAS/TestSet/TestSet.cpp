@@ -44,7 +44,7 @@ template<class T>void randomMatSymmetric(BLAS::mat& a, std::mt19937& mt, T& rd)
 	{
 		unsigned int c1(0);
 		for (; c1 < a.width && c1 < c0; ++c1)
-			a(c1, c0) = a(c0, c1) = 0.3 * rd(mt);
+			a(c1, c0) = a(c0, c1) = 0.01 * rd(mt);
 		a(c0, c1++) = 1 + 0.2 * rd(mt);
 	}
 }
@@ -69,7 +69,7 @@ template<class T>void randomMatBandL(BLAS::mat& a, std::mt19937& mt, T& rd)
 		unsigned int ending(c0 <= a.halfBandWidth ? c0 + 1 : a.halfBandWidth + 1);
 		ending += c1;
 		for (; c1 < ending - 1; ++c1)
-			a.data[c0 * a.width4d + c1] = 0.1 * rd(mt);
+			a.data[c0 * a.width4d + c1] = rd(mt) / 64;
 		a.data[c0 * a.width4d + c1] = 1 + 0.1 * rd(mt);
 	}
 }
@@ -129,6 +129,22 @@ BLAS::mat& transLBandToSymmetricMat(BLAS::mat const& a, BLAS::mat& b)
 			b.data[c0 * b.width4d + c1] = b.data[c1 * b.width4d + c0];
 	return b;
 }
+BLAS::mat& transNormalMatToBand(BLAS::mat const& a, BLAS::mat& b)
+{
+	//use the size of b
+	b.clear();
+	unsigned int bgn, end;
+	for (unsigned int c0(0); c0 < b.height; ++c0)
+	{
+		if (c0 <= b.halfBandWidth)bgn = 0;
+		else bgn = c0 - b.halfBandWidth;
+		if (c0 >= b.height - b.halfBandWidth)end = b.height;
+		else end = c0 + b.halfBandWidth + 1;
+		memcpy(b.data + c0 * b.width4d + b.BandBeginOffset(c0),
+			a.data + a.width4d * c0 + bgn, (end - bgn) * sizeof(double));
+	}
+	return b;
+}
 
 int main()
 {
@@ -145,57 +161,55 @@ int main()
 	//tb(ta).print();
 	//ta(tb).print();
 
-	unsigned int bd(128);
-	unsigned int h(129 * 129 - 1);
+	unsigned int bd(65);
+	unsigned int h(65 * 65 - 1);
+	mat matB(bd, h, MatType::BandMat, false);
 	mat matLB(bd, h, MatType::LBandMat, false);
 	//mat matUB(bd, h, MatType::UBandMat, false);
 	mat matSym(h, h, false);
-	mat matCho(h, h, false);
+	//mat matCho(h, h, false);
 	vec vv(h, false);
 	randomMatBandL(matLB, mt, rd);
 	//randomMatBandU(matUB, mt, rd);
 	transLBandToSymmetricMat(matLB, matSym);
+	transNormalMatToBand(matSym, matB);
 	//transBandToNormalMat(matUB, matU);
 	randomVec(vv, mt, rd);
-	//matUB.print();
-	//matU.print();
-	//vec s, r;
-	//matLB(vv, s);
-	//matL(vv, r);
-	//vec det(s - r);
-	//::printf("differ LBand: %f\n", det.norm2());
-	//matUB(vv, s);
-	//matU(vv, r);
-	//det = s;
-	//det -= r;
-	//::printf("differ UBand: %f\n", det.norm2());
-
-	//timer.begin();
-	//for (unsigned int c0(0); c0 < 100; ++c0)
-	//	matLB(vv);
-	//timer.end();
-	//timer.print("Lband mat mult vec:");
-
-	//timer.begin();
-	//for (unsigned int c0(0); c0 < 100; ++c0)
-	//	matL(vv);
-	//timer.end();
-	//timer.print("mat mult vec:");
 
 	vec rr(h, false);
 	vec ans(h, false);
 	vec ansB(h, false);
-	vec tp(vv);
+	vec tp(h, false);
 	matSym(vv, rr);
+
+	timer.begin();
+	matB.solveConjugateGradient(rr, ansB, 1e-14);
+	timer.end();
+	tp = vv; tp -= ansB;
+	printf("Conjugate Gradient (band):\t%e", tp.norm2());
+	timer.print();
 
 	timer.begin();
 	matLB.solveCholeskyBand(rr, ansB);
 	timer.end();
-	timer.print("solveCholeskyBand:");
+	tp = vv; tp -= ansB;
+	printf("Cholesky (band):\t\t%e", tp.norm2());
+	timer.print();
 
-	transLBandToSymmetricMat(matLB, matCho);
-	tp -= ansB;
-	printf("ans - solveCholeskyBand: %e\n", tp.norm2());
+	timer.begin();
+	matB.solveSteepestDescent(rr, ansB, 1e-14);
+	timer.end();
+	tp = vv; tp -= ansB;
+	printf("Steepest Descent (band):\t%e", tp.norm2());
+	timer.print();
+
+	timer.begin();
+	matSym.solveSteepestDescent(rr, ansB, 1e-14);
+	timer.end();
+	tp = vv; tp -= ansB;
+	printf("Steepest Descent:\t\t%e", tp.norm2());
+	timer.print();
+
 	//tp.printToTableTxt("./det.txt", false);
 	//ansB.printToTableTxt("./ans.txt", false);
 	//matSym.printToTableTxt("./mat.txt");
@@ -239,26 +253,26 @@ int main()
 	//printf("solveU - solveU band: %e\n", tp.norm2());
 	//tp.printToTableTxt("./det.txt", false);
 
-	vec vecA(128 * 128);
-	vec vecB(128 * 128);
+	//vec vecA(128 * 128);
+	//vec vecB(128 * 128);
 
-	vec vecC(1025, false);
-	vec vecD(1025, false);
-	vec vecE(1025, false);
-	mat matA(1025, 1025, false);
+	//vec vecC(h, false);
+	//vec vecD(h, false);
+	//vec vecE(h, false);
+	//mat matA(h, h, false);
 	//mat matB(1024, 1024, false);
 	//mat matC(7, 7, false);
 	//mat matD(64, 3, false);
-	randomVec(vecA, mt, rd);
-	randomVec(vecB, mt, rd);
+	//randomVec(vecA, mt, rd);
+	//randomVec(vecB, mt, rd);
 	//randomVec(vecC, mt, rd);
-	randomVec(vecE, mt, rd);
-	randomMatSymmetric(matA, mt, rd);
+	//randomVec(vecE, mt, rd);
+	//randomMatSymmetric(matA, mt, rd);
 	//randomMat(matB, mt, rd);
 	//randomMat(matC, mt, rd);
 
 	//vec
-	{
+	/*{
 		timer.begin();
 		for (unsigned int c0(0); c0 < 100; ++c0)
 			vecA += vecB;
@@ -322,27 +336,25 @@ int main()
 		timer.end();
 		::printf("vec normP:%.4f\t", norm);
 		timer.print();
-	}
+	}*/
 
 	//mat
 
-	matA(vecE, vecC);
+	//matA(vecE, vecC);
 	//matA.printToTableTxt("./matA.txt");
 	//vecC.printToTableTxt("./vecC.txt", false);
 	//vecE.printToTableTxt("./vecE.txt", false);
 
-	//matA.solveCholeskyBand(vecC, vecD);
-	timer.begin();
-	matA.solveCholesky(vecC, vecD);
-	timer.end();
-	//matA.printToTableTxt("./matACho.txt");
+	//timer.begin();
+	//matA.solveSteepestDescent(vecC, vecD, 1e-20);
+	//timer.end();
+	////matA.printToTableTxt("./matACho.txt");
 
-	//::printf("%d\n", int(1u - 4u) / 4);
-
-	vec delta(vecE - vecD);
-	::printf("solveCholesky delta norm:%e \t", delta.norm2());
-	timer.print();
+	//vec delta(vecE - vecD);
+	//::printf("solveSteepestDescent delta norm:%e \t", delta.norm2());
+	//timer.print();
 	//vecD.printToTableTxt("./vecD.txt", false);
+	//vecE.printToTableTxt("./vecE.txt", false);
 	//delta.printToTableTxt("./delta.txt", false);
 
 	//timer.begin();
