@@ -17,8 +17,28 @@ int main()
 	//tb(ta).print();
 	//ta(tb).print();
 
-	unsigned long long bd(1024);
-	unsigned long long h(1025 * 1025 - 1);
+	//vec jj({ 1,2,3,4 });
+	//mat gg({ {0,1},{0,0,1},{0,0,0,1},{1} });
+	//mat matSp(MatType::SparseMat, 4);
+	//matSp.data[0] = 1;
+	//matSp.data[1] = 1;
+	//matSp.data[2] = 1;
+	//matSp.data[3] = 1;
+	//matSp.rowIndice[0] = 0;
+	//matSp.rowIndice[1] = 1;
+	//matSp.rowIndice[2] = 2;
+	//matSp.rowIndice[3] = 3;
+	//matSp.colIndice[0] = 1;
+	//matSp.colIndice[1] = 2;
+	//matSp.colIndice[2] = 3;
+	//matSp.colIndice[3] = 0;
+	//gg(jj).print();
+	//matSp(jj).print();
+
+
+
+	unsigned long long bd(64);
+	unsigned long long h(64 * 64 - 1);
 	mat matB(bd, h, MatType::BandMat, false);
 	mat matLB(bd, h, MatType::LBandMat, false);
 	//mat matUB(bd, h, MatType::UBandMat, false);

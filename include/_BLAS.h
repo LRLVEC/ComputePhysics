@@ -32,6 +32,8 @@ namespace BLAS
 		BandMat,
 		LBandMat,
 		UBandMat,
+		//sparse mat
+		SparseMat,
 	};
 
 	//note: if a vec is Non32Aligened, then don't do any +-*/ operation to 
@@ -750,9 +752,18 @@ namespace BLAS
 		{
 			unsigned long long width;
 			unsigned long long halfBandWidth;//if is BandMat
+			unsigned long long* rowIndice;//if is SparseMat
 		};
-		unsigned long long height;
-		unsigned long long width4d;
+		union
+		{
+			unsigned long long height;
+			unsigned long long* colIndice;//if is SparseMat
+		};
+		union
+		{
+			unsigned long long width4d;
+			unsigned long long elementNum;
+		};
 		Type type;
 		MatType matType;
 
@@ -802,6 +813,22 @@ namespace BLAS
 			}
 			if (_clear && data)
 				memset64d(data, 0, width4d * height);
+		}
+		mat(MatType _type, unsigned long long _elementNum)
+			:
+			data(nullptr),
+			rowIndice(nullptr),
+			colIndice(nullptr),
+			elementNum(_elementNum),
+			type(Type::Native),
+			matType(_type)
+		{
+			if (_type == MatType::SparseMat && _elementNum)
+			{
+				data = malloc64d(_elementNum);
+				rowIndice = (unsigned long long*)malloc64d(_elementNum);
+				colIndice = (unsigned long long*)malloc64d(_elementNum);
+			}
 		}
 		mat(mat const& a)
 			:
@@ -875,7 +902,13 @@ namespace BLAS
 		{
 			if (type == Type::Native)_mm_free(data);
 			data = nullptr;
-			width = height = 0;
+			if (matType < MatType::SparseMat)width = height = 0;
+			else
+			{
+				_mm_free(rowIndice);
+				_mm_free(colIndice);
+				rowIndice = colIndice = nullptr;
+			}
 		}
 		template<class T>inline double& operator[](T a)
 		{
@@ -997,6 +1030,28 @@ namespace BLAS
 					height = _height;
 				}
 			}
+		}
+		void extend(unsigned int _elementNum)
+		{
+			if (_elementNum > elementNum && matType == MatType::SparseMat)
+			{
+				double* _data(malloc64d(_elementNum));
+				unsigned long long* _r((unsigned long long*)malloc64d(_elementNum));
+				unsigned long long* _c((unsigned long long*)malloc64d(_elementNum));
+				memcpy64d(_data, data, elementNum);
+				memcpy64d(_r, rowIndice, elementNum);
+				memcpy64d(_c, colIndice, elementNum);
+				_mm_free(data);
+				_mm_free(rowIndice);
+				_mm_free(colIndice);
+				elementNum = _elementNum;
+			}
+		}
+		void addSparse(unsigned long long a, unsigned long long b, double s, unsigned long long &cnt)
+		{
+			data[cnt] = s;
+			rowIndice[cnt] = a;
+			colIndice[cnt++] = b;
 		}
 		//= += -= *= /=
 		mat& operator =(mat&& a)
@@ -1275,10 +1330,25 @@ namespace BLAS
 		//non-in-situ mult vec
 		vec operator()(vec const& a)const
 		{
-			unsigned long long minDim(width > a.dim ? a.dim : width);
-			if (minDim && height)
+			unsigned long long h;
+			unsigned long long minDim;
+			if (matType < MatType::BandMat)
 			{
-				vec r(height, false);
+				h = height;
+				minDim = width > a.dim ? a.dim : width;
+			}
+			else if (matType < MatType::SparseMat)
+			{
+				h = height;
+				minDim = height > a.dim ? a.dim : height;
+			}
+			else
+			{
+				h = minDim = a.dim;
+			}
+			if (minDim && h)
+			{
+				vec r(h, false);
 				return (*this)(a, r);
 			}
 			return vec();
@@ -1286,6 +1356,7 @@ namespace BLAS
 		vec& operator()(vec const& a, vec& b)const
 		{
 			unsigned long long w(matType < MatType::BandMat ? width : height);
+			if (matType == MatType::SparseMat)w = a.dim;
 			unsigned long long minDim(w > a.dim ? a.dim : w);
 			if (minDim)
 			{
@@ -1452,6 +1523,24 @@ namespace BLAS
 						b.data[c0] = (tp, ta);
 					}
 					break;
+				}
+				case MatType::SparseMat:
+				{
+					unsigned long long n(0);
+					for (unsigned long long c0(0); c0 < minDim && n < elementNum; ++c0)
+					{
+						b.data[c0] = 0;
+						if (rowIndice[n] > c0)continue;
+						else
+						{
+							while (n < elementNum)
+							{
+								if (rowIndice[n] > c0)break;
+								b.data[c0] += data[n] * a.data[colIndice[n]];
+								n++;
+							}
+						}
+					}
 				}
 				}
 				return b;
@@ -1867,7 +1956,7 @@ namespace BLAS
 			x0 = a;
 			(*this)(x0, r);
 			r -= a;
-			for (unsigned long long c0(0); c0 < 10000; ++c0)
+			for (unsigned long long c0(0); c0 < 5000; ++c0)
 			{
 				(*this)(r, Ar);
 				double eps(r.norm2Square());
@@ -1914,25 +2003,24 @@ namespace BLAS
 			//		p += r;
 			//	}
 			//}
-			x0 = a;
+			x0 = 0;
 			(*this)(x0, r);
 			r -= a;
 			p = r;
 			double rNorm(r.norm2Square());
-			for (unsigned long long c0(0); c0 < 10000; ++c0)
+			for (unsigned long long c0(0); c0 < 5000; ++c0)
 			{
-				if (rNorm < _eps * _eps)
-				{
-					//::printf("iters:\t%d\n", c0 * 10);
-					return b;
-				}
+				if (c0 % 10 == 0)
+					if (r.normInf() < _eps)
+					{
+						::printf("iters:\t%d\n", c0);
+						return b;
+					}
 				(*this)(p, Ap);
-				double rNorm1(rNorm);
-				double d((Ap, p));
-				//double eps(r.norm2Square());
-				double alpha(-rNorm1 / d);
+				double alpha(-rNorm / (Ap, p));
 				x0.fmadd(alpha, p);
 				r.fmadd(alpha, Ap);
+				double rNorm1(rNorm);
 				rNorm = r.norm2Square();
 				double beta(rNorm / rNorm1);
 				p *= beta;
@@ -1950,7 +2038,7 @@ namespace BLAS
 				{
 					::printf("\t[%.4e", data[width4d * c0]);
 					unsigned long long ed(width);
-					if (matType >= MatType::BandMat)
+					if (matType >= MatType::BandMat && matType < MatType::SparseMat)
 						ed = width4d;
 					for (unsigned long long c1(1); c1 < ed; ++c1)
 						::printf(", %.4e", data[width4d * c0 + c1]);
