@@ -2,155 +2,11 @@
 #include <_Time.h>
 #include <random>
 
-template<class T>void randomVec(BLAS::vec& a, std::mt19937& mt, T& rd)
-{
-	for (unsigned int c0(0); c0 < a.dim; ++c0)
-		a.data[c0] = rd(mt);
-}
-template<class T>void randomMat(BLAS::mat& a, std::mt19937& mt, T& rd)
-{
-	for (unsigned int c0(0); c0 < a.height; ++c0)
-		for (unsigned int c1(0); c1 < a.width; ++c1)
-			a(c0, c1) = rd(mt);
-}
-template<class T>void randomMatGood(BLAS::mat& a, std::mt19937& mt, T& rd)
-{
-	for (unsigned int c0(0); c0 < a.height; ++c0)
-	{
-		unsigned int c1(0);
-		for (; c1 < a.width && c1 < c0; ++c1)
-			a(c0, c1) = 0.01 * rd(mt);
-		a(c0, c1++) = 1 + 0.1 * rd(mt);
-		for (; c1 < a.width; ++c1)
-			a(c0, c1) = 0.01 * rd(mt);
-	}
-}
-template<class T>void randomMatL(BLAS::mat& a, std::mt19937& mt, T& rd)
-{
-	for (unsigned int c0(0); c0 < a.height; ++c0)
-	{
-		unsigned int c1(0);
-		for (; c1 < a.width && c1 < c0; ++c1)
-			a(c0, c1) = 0.1 * rd(mt);
-		a(c0, c1++) = 1 + 0.2 * rd(mt);
-		for (; c1 < a.width; ++c1)
-			a(c0, c1) = 0;
-	}
-}
-template<class T>void randomMatSymmetric(BLAS::mat& a, std::mt19937& mt, T& rd)
-{
-	//make sure square matrix!
-	for (unsigned int c0(0); c0 < a.height; ++c0)
-	{
-		unsigned int c1(0);
-		for (; c1 < a.width && c1 < c0; ++c1)
-			a(c1, c0) = a(c0, c1) = 0.01 * rd(mt);
-		a(c0, c1++) = 1 + 0.2 * rd(mt);
-	}
-}
-template<class T>void randomMatU(BLAS::mat& a, std::mt19937& mt, T& rd)
-{
-	for (unsigned int c0(0); c0 < a.height; ++c0)
-	{
-		unsigned int c1(0);
-		for (; c1 < a.width && c1 < c0; ++c1)
-			a(c0, c1) = 0;
-		a(c0, c1++) = 1 + 0.2 * rd(mt);
-		for (; c1 < a.width; ++c1)
-			a(c0, c1) = 0.1 * rd(mt);
-	}
-}
-template<class T>void randomMatBandL(BLAS::mat& a, std::mt19937& mt, T& rd)
-{
-	a.clear();
-	for (unsigned int c0(0); c0 < a.height; ++c0)
-	{
-		unsigned int c1(a.LBandBeginOffset(c0));
-		unsigned int ending(c0 <= a.halfBandWidth ? c0 + 1 : a.halfBandWidth + 1);
-		ending += c1;
-		for (; c1 < ending - 1; ++c1)
-			a.data[c0 * a.width4d + c1] = rd(mt) / 64;
-		a.data[c0 * a.width4d + c1] = 1 + 0.1 * rd(mt);
-	}
-}
-template<class T>void randomMatBandU(BLAS::mat& a, std::mt19937& mt, T& rd)
-{
-	a.clear();
-	for (unsigned int c0(0); c0 < a.height; ++c0)
-	{
-		unsigned int c1(c0 % 4);
-		unsigned int ending(a.height - c0 <= a.halfBandWidth ? a.height - c0 : a.halfBandWidth + 1);
-		ending += c1;
-		a.data[c0 * a.width4d + c1++] = 1 + 0.1 * rd(mt);
-		for (; c1 < ending; ++c1)
-			a.data[c0 * a.width4d + c1] = 0.1 * rd(mt);
-	}
-}
-BLAS::mat& transBandToNormalMat(BLAS::mat const& a, BLAS::mat& b)
-{
-	if (b.width != a.height || b.height != a.height)
-		b.reconstruct(a.height, a.height, false);
-	b.clear();
-	if (a.matType == BLAS::MatType::LBandMat)
-	{
-		for (unsigned int c0(0); c0 < a.height; ++c0)
-		{
-			unsigned int bgn(a.LBandBeginOffset(c0));
-			unsigned int ost(c0 <= a.halfBandWidth ? c0 : a.halfBandWidth);
-			memcpy(b.data + c0 * b.width4d + c0 - ost,
-				a.data + c0 * a.width4d + bgn, (ost + 1) * sizeof(double));
-		}
-	}
-	else if (a.matType == BLAS::MatType::UBandMat)
-	{
-		for (unsigned int c0(0); c0 < a.height; ++c0)
-		{
-			unsigned int ost(a.height - c0 <= a.halfBandWidth ? a.height - c0 : a.halfBandWidth + 1);
-			memcpy(b.data + c0 * b.width4d + c0,
-				a.data + c0 * a.width4d + c0 % 4, ost * sizeof(double));
-		}
-	}
-	return b;
-}
-BLAS::mat& transLBandToSymmetricMat(BLAS::mat const& a, BLAS::mat& b)
-{
-	if (b.width != a.height || b.height != a.height)
-		b.reconstruct(a.height, a.height, false);
-	b.clear();
-	for (unsigned int c0(0); c0 < a.height; ++c0)
-	{
-		unsigned int bgn(a.LBandBeginOffset(c0));
-		unsigned int ost(c0 <= a.halfBandWidth ? c0 : a.halfBandWidth);
-		memcpy(b.data + c0 * b.width4d + c0 - ost,
-			a.data + c0 * a.width4d + bgn, (ost + 1) * sizeof(double));
-	}
-	for (unsigned int c0(0); c0 < a.height - 1; ++c0)
-		for (unsigned int c1(c0 + 1); c1 < a.height; ++c1)
-			b.data[c0 * b.width4d + c1] = b.data[c1 * b.width4d + c0];
-	return b;
-}
-BLAS::mat& transNormalMatToBand(BLAS::mat const& a, BLAS::mat& b)
-{
-	//use the size of b
-	b.clear();
-	unsigned int bgn, end;
-	for (unsigned int c0(0); c0 < b.height; ++c0)
-	{
-		if (c0 <= b.halfBandWidth)bgn = 0;
-		else bgn = c0 - b.halfBandWidth;
-		if (c0 >= b.height - b.halfBandWidth)end = b.height;
-		else end = c0 + b.halfBandWidth + 1;
-		memcpy(b.data + c0 * b.width4d + b.BandBeginOffset(c0),
-			a.data + a.width4d * c0 + bgn, (end - bgn) * sizeof(double));
-	}
-	return b;
-}
-
 int main()
 {
 	std::mt19937 mt(time(nullptr));
 	std::uniform_real_distribution<double> rd(-1.0, 1.0);
-	std::uniform_int_distribution<unsigned int> rduint(1, 10);
+	std::uniform_int_distribution<unsigned long long> rduint(1, 10);
 	Timer timer;
 
 	using namespace BLAS;
@@ -161,18 +17,19 @@ int main()
 	//tb(ta).print();
 	//ta(tb).print();
 
-	unsigned int bd(65);
-	unsigned int h(65 * 65 - 1);
+	unsigned long long bd(1024);
+	unsigned long long h(1025 * 1025 - 1);
 	mat matB(bd, h, MatType::BandMat, false);
 	mat matLB(bd, h, MatType::LBandMat, false);
 	//mat matUB(bd, h, MatType::UBandMat, false);
-	mat matSym(h, h, false);
+	//mat matSym(h, h, false);
 	//mat matCho(h, h, false);
 	vec vv(h, false);
-	randomMatBandL(matLB, mt, rd);
+	randomMatBandL(matLB, mt, rd, 1.0 / bd);
 	//randomMatBandU(matUB, mt, rd);
-	transLBandToSymmetricMat(matLB, matSym);
-	transNormalMatToBand(matSym, matB);
+	//transLBandToSymmetricMat(matLB, matSym);
+	transLBandToSymmetricBandMat(matLB, matB);
+	//transNormalMatToBand(matSym, matB);
 	//transBandToNormalMat(matUB, matU);
 	randomVec(vv, mt, rd);
 
@@ -180,35 +37,36 @@ int main()
 	vec ans(h, false);
 	vec ansB(h, false);
 	vec tp(h, false);
-	matSym(vv, rr);
+	matB(vv, rr);
+	::printf("started\n");
+
+	//timer.begin();
+	//matLB.solveCholeskyBand(rr, ansB);
+	//timer.end();
+	//tp = vv; tp -= ansB;
+	//printf("Cholesky (band):\t\t%e", tp.norm2());
+	//timer.print();
 
 	timer.begin();
-	matB.solveConjugateGradient(rr, ansB, 1e-14);
+	matB.solveConjugateGradient(rr, ansB, 1.0e-10);
 	timer.end();
 	tp = vv; tp -= ansB;
 	printf("Conjugate Gradient (band):\t%e", tp.norm2());
 	timer.print();
 
 	timer.begin();
-	matLB.solveCholeskyBand(rr, ansB);
-	timer.end();
-	tp = vv; tp -= ansB;
-	printf("Cholesky (band):\t\t%e", tp.norm2());
-	timer.print();
-
-	timer.begin();
-	matB.solveSteepestDescent(rr, ansB, 1e-14);
+	matB.solveSteepestDescent(rr, ansB, 5.0e-9);
 	timer.end();
 	tp = vv; tp -= ansB;
 	printf("Steepest Descent (band):\t%e", tp.norm2());
 	timer.print();
 
-	timer.begin();
-	matSym.solveSteepestDescent(rr, ansB, 1e-14);
-	timer.end();
-	tp = vv; tp -= ansB;
-	printf("Steepest Descent:\t\t%e", tp.norm2());
-	timer.print();
+	//timer.begin();
+	//matSym.solveSteepestDescent(rr, ansB, 1e-14);
+	//timer.end();
+	//tp = vv; tp -= ansB;
+	//printf("Steepest Descent:\t\t%e", tp.norm2());
+	//timer.print();
 
 	//tp.printToTableTxt("./det.txt", false);
 	//ansB.printToTableTxt("./ans.txt", false);
@@ -274,31 +132,31 @@ int main()
 	//vec
 	/*{
 		timer.begin();
-		for (unsigned int c0(0); c0 < 100; ++c0)
+		for (unsigned long long c0(0); c0 < 100; ++c0)
 			vecA += vecB;
 		timer.end();
 		timer.print("vec add:");
 
 		timer.begin();
-		for (unsigned int c0(0); c0 < 100; ++c0)
+		for (unsigned long long c0(0); c0 < 100; ++c0)
 			vecA -= vecB;
 		timer.end();
 		timer.print("vec minus:");
 
 		timer.begin();
-		for (unsigned int c0(0); c0 < 100; ++c0)
+		for (unsigned long long c0(0); c0 < 100; ++c0)
 			vecA *= vecB;
 		timer.end();
 		timer.print("vec mult:");
 
 		timer.begin();
-		for (unsigned int c0(0); c0 < 100; ++c0)
+		for (unsigned long long c0(0); c0 < 100; ++c0)
 			vecA /= vecB;
 		timer.end();
 		timer.print("vec div:");
 
 		timer.begin();
-		for (unsigned int c0(0); c0 < 100; ++c0)
+		for (unsigned long long c0(0); c0 < 100; ++c0)
 			vecA.fmadd(1.0, vecB);
 		timer.end();
 		timer.print("vec fmadd:");
@@ -358,13 +216,13 @@ int main()
 	//delta.printToTableTxt("./delta.txt", false);
 
 	//timer.begin();
-	//for (unsigned int c0(0); c0 < 100; ++c0)
+	//for (unsigned long long c0(0); c0 < 100; ++c0)
 	//	matA(vecC);
 	//timer.end();
 	//timer.print("mat mult vec:");
 
 	//timer.begin();
-	//for (unsigned int c0(0); c0 < 100; ++c0)
+	//for (unsigned long long c0(0); c0 < 100; ++c0)
 	//	vecC(matA);
 	//timer.end();
 	//timer.print("vec mult mat:");
