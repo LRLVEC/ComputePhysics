@@ -35,30 +35,49 @@ int main()
 	//gg(jj).print();
 	//matSp(jj).print();
 
+	vecCplx vecCplxA(1024 * 1024);
+	vecCplx vecCplxB(1024 * 1024);
+	//vecCplx vecCplxC(1024 * 1024);
+
+	randomVecCplx(vecCplxA, mt, rduint);
+	randomVecCplx(vecCplxB, mt, rduint);
+
+	//vecCplxA.print();
+	//vecCplxB.print();
+
+	timer.begin();
+	//vecCplxA /= vecCplxB;
+	
+	cplx t((vecCplxA, vecCplxB));
+	timer.end();
+	timer.print();
+	t.print();
+
+	//vecCplxA.print();
 
 
-	unsigned long long bd(64);
-	unsigned long long h(64 * 64 - 1);
-	mat matB(bd, h, MatType::BandMat, false);
-	mat matLB(bd, h, MatType::LBandMat, false);
+	//unsigned long long bd(64);
+	//unsigned long long h(64 * 64 - 1);
+	//mat matB(bd, h, MatType::BandMat, false);
+	//mat matLB(bd, h, MatType::LBandMat, false);
 	//mat matUB(bd, h, MatType::UBandMat, false);
 	//mat matSym(h, h, false);
 	//mat matCho(h, h, false);
-	vec vv(h, false);
-	randomMatBandL(matLB, mt, rd, 1.0 / bd);
+	//vec vv(h, false);
+	//randomMatBandL(matLB, mt, rd, 1.0 / bd);
 	//randomMatBandU(matUB, mt, rd);
 	//transLBandToSymmetricMat(matLB, matSym);
-	transLBandToSymmetricBandMat(matLB, matB);
+	//transLBandToSymmetricBandMat(matLB, matB);
 	//transNormalMatToBand(matSym, matB);
 	//transBandToNormalMat(matUB, matU);
-	randomVec(vv, mt, rd);
+	//randomVec(vv, mt, rd);
 
-	vec rr(h, false);
-	vec ans(h, false);
-	vec ansB(h, false);
-	vec tp(h, false);
-	matB(vv, rr);
-	::printf("started\n");
+	//vec rr(h, false);
+	//vec ans(h, false);
+	//vec ansB(h, false);
+	//vec tp(h, false);
+	//matB(vv, rr);
+	//::printf("started\n");
 
 	//timer.begin();
 	//matLB.solveCholeskyBand(rr, ansB);
@@ -67,19 +86,19 @@ int main()
 	//printf("Cholesky (band):\t\t%e", tp.norm2());
 	//timer.print();
 
-	timer.begin();
-	matB.solveConjugateGradient(rr, ansB, 1.0e-10);
-	timer.end();
-	tp = vv; tp -= ansB;
-	printf("Conjugate Gradient (band):\t%e", tp.norm2());
-	timer.print();
+	//timer.begin();
+	//matB.solveConjugateGradient(rr, ansB, 1.0e-10);
+	//timer.end();
+	//tp = vv; tp -= ansB;
+	//printf("Conjugate Gradient (band):\t%e", tp.norm2());
+	//timer.print();
 
-	timer.begin();
-	matB.solveSteepestDescent(rr, ansB, 5.0e-9);
-	timer.end();
-	tp = vv; tp -= ansB;
-	printf("Steepest Descent (band):\t%e", tp.norm2());
-	timer.print();
+	//timer.begin();
+	//matB.solveSteepestDescent(rr, ansB, 5.0e-9);
+	//timer.end();
+	//tp = vv; tp -= ansB;
+	//printf("Steepest Descent (band):\t%e", tp.norm2());
+	//timer.print();
 
 	//timer.begin();
 	//matSym.solveSteepestDescent(rr, ansB, 1e-14);
