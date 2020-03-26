@@ -2109,14 +2109,14 @@ namespace BLAS
 					if (maxP1 < p1)maxP1 = p1;
 					if (c0 < p0)
 					{
-						for (; c1 < maxP1; ++c1)
+						for (; c1 <= maxP1; ++c1)
 							::printf("  0.0, ");
 						::printf("\n");
 						++c0; c1 = 0;
 					}
 					for (; c0 < p0; ++c0)
 					{
-						for (c1 = 0; c1 < maxP1; ++c1)
+						for (c1 = 0; c1 <= maxP1; ++c1)
 							::printf("  0.0, ");
 						::printf("\n");
 						c1 = 0;
@@ -2362,6 +2362,94 @@ namespace BLAS
 			}
 			return *this;
 		}
+		vecCplx& operator+=(cplx a)
+		{
+			re += a.re;
+			im += a.im;
+			return *this;
+		}
+		vecCplx& operator-=(cplx a)
+		{
+			re -= a.re;
+			im -= a.im;
+			return *this;
+		}
+		vecCplx& operator*=(cplx a)
+		{
+			if (dim)
+			{
+				unsigned long long minDim4(dim >> 2);
+				__m256d* aRe((__m256d*)re.data);
+				__m256d* aIm((__m256d*)im.data);
+				__m256d b1 = _mm256_broadcast_sd(&a.re);
+				__m256d b2 = _mm256_broadcast_sd(&a.im);
+				unsigned long long c0(0);
+				for (; c0 < minDim4; ++c0)
+				{
+					__m256d a1 = aRe[c0];
+					__m256d a2 = aIm[c0];
+					aRe[c0] = _mm256_fmsub_pd(a1, b1, _mm256_mul_pd(a2, b2));
+					aIm[c0] = _mm256_fmadd_pd(a2, b1, _mm256_mul_pd(a1, b2));
+				}
+				if ((c0 << 2) < dim)
+					for (unsigned long long c1(c0 << 2); c1 < dim; ++c1)
+					{
+						double a1 = re.data[c1];
+						double a2 = im.data[c1];
+						re.data[c1] = a1 * a.re - a2 * a.im;
+						im.data[c1] = a2 * a.re + a1 * a.im;
+					}
+			}
+			return *this;
+		}
+		vecCplx& operator/=(cplx a)
+		{
+			double an(a.norm());
+			a.re /= an;
+			a.im = -a.im / an;
+			return (*this) *= a;
+		}
+		vecCplx& fmadd(double a, vecCplx const& b)
+		{
+			re.fmadd(a, b.re);
+			im.fmadd(a, b.im);
+			return *this;
+		}
+		vecCplx& fmadd(cplx a, vecCplx const& b)
+		{
+			if (b.dim && dim)
+			{
+				unsigned long long minDim(dim > b.dim ? b.dim : dim);
+				unsigned long long minDim4(minDim >> 2);
+				__m256d* aRe((__m256d*)re.data);
+				__m256d* aIm((__m256d*)im.data);
+				__m256d* bRe((__m256d*)b.re.data);
+				__m256d* bIm((__m256d*)b.im.data);
+				__m256d c1 = _mm256_broadcast_sd(&a.re);
+				__m256d c2 = _mm256_broadcast_sd(&a.im);
+				unsigned long long c0(0);
+				for (; c0 < minDim4; ++c0)
+				{
+					__m256d a1 = aRe[c0];
+					__m256d a2 = aIm[c0];
+					__m256d b1 = bRe[c0];
+					__m256d b2 = bIm[c0];
+					a1 = _mm256_fmsub_pd(b2, c2, a1);
+					aRe[c0] = _mm256_fmadd_pd(b1, c1, a1);
+					a2 = _mm256_fmadd_pd(b1, c2, a2);
+					aIm[c0] = _mm256_fmadd_pd(b2, c1, a2);
+				}
+				if ((c0 << 2) < minDim)
+					for (unsigned long long c1(c0 << 2); c1 < minDim; ++c1)
+					{
+						double b1 = b.re.data[c1];
+						double b2 = b.im.data[c1];
+						re.data[c1] += b1 * a.re - b2 * a.im;
+						im.data[c1] += b2 * a.re + b1 * a.im;
+					}
+			}
+			return *this;
+		}
 		//dot
 		cplx operator,(vecCplx const& a)const
 		{
@@ -2414,7 +2502,64 @@ namespace BLAS
 					double b1 = a.re.data[c1];
 					double b2 = a.im.data[c1];
 					sRe += a1 * b1 - a2 * b2;
-					sIm = a2 * b1 + a1 * b2;
+					sIm += a2 * b1 + a1 * b2;
+				}
+				sRe += tpRe.m256d_f64[0];
+				sRe += tpRe.m256d_f64[1];
+				sRe += tpRe.m256d_f64[2];
+				sRe += tpRe.m256d_f64[3];
+				sIm += tpIm.m256d_f64[0];
+				sIm += tpIm.m256d_f64[1];
+				sIm += tpIm.m256d_f64[2];
+				sIm += tpIm.m256d_f64[3];
+				return { sRe,sIm };
+			}
+			else return { 0 };
+		}
+		//normSquare (no complex conjugate)
+		cplx normSquare()const
+		{
+			if (dim)
+			{
+				unsigned long long e0(dim + begining);
+				double sRe(0), sIm(0);
+				unsigned long long minDim4(e0 >> 2);
+				__m256d* aRe((__m256d*)re.data);
+				__m256d* aIm((__m256d*)im.data);
+				unsigned long long c0(0);
+				__m256d tpRe = { 0 };
+				__m256d tpIm = { 0 };
+				if (begining)
+				{
+					__m256d a1 = aRe[c0];
+					__m256d a2 = aIm[c0];
+					__m256d tp = _mm256_mul_pd(a1, a2);
+					tp = _mm256_mul_pd({ 2,2,2,2 }, tp);
+					tpRe = _mm256_fmadd_pd(a1, a1, tpRe);
+					tpIm = _mm256_add_pd(tpIm, tp);
+					tpRe = _mm256_fmsub_pd(a2, a2, tpRe);
+					for (unsigned long long c1(0); c1 < begining; ++c1)
+						tpRe.m256d_f64[c1] = tpIm.m256d_f64[c1] = 0;
+					++c0;
+				}
+				for (unsigned long long c1(e0); c1 < 4; ++c1)
+					tpRe.m256d_f64[c1] = tpIm.m256d_f64[c1] = 0;
+				for (; c0 < minDim4; ++c0)
+				{
+					__m256d a1 = aRe[c0];
+					__m256d a2 = aIm[c0];
+					__m256d tp = _mm256_mul_pd(a1, a2);
+					tp = _mm256_mul_pd({ 2,2,2,2 }, tp);
+					tpRe = _mm256_fmadd_pd(a1, a1, tpRe);
+					tpIm = _mm256_add_pd(tpIm, tp);
+					tpRe = _mm256_fmsub_pd(a2, a2, tpRe);
+				}
+				for (unsigned long long c1(c0 << 2); c1 < e0; ++c1)
+				{
+					double a1 = re.data[c1];
+					double a2 = im.data[c1];
+					sRe += a1 * a1 - a2 * a2;
+					sIm += 2 * a1 * a2;
 				}
 				sRe += tpRe.m256d_f64[0];
 				sRe += tpRe.m256d_f64[1];
@@ -2442,12 +2587,336 @@ namespace BLAS
 			::printf("]\n");
 		}
 	};
-	//struct matCplx
-	//{
-	//	mat re;
-	//	mat im;
-	//	//...
-	//};
+	struct matCplx
+	{
+		mat re;
+		mat im;
+		Type type;
+		MatType matType;
+
+		matCplx(MatType _type, unsigned long long _elementNumRe, unsigned long long _elementNumIm)
+			:
+			re(_type, _elementNumRe),
+			im(_type, _elementNumIm),
+			type(Type::Native),
+			matType(_type)
+		{
+		}
+
+		vecCplx& operator()(vecCplx const& a, vecCplx& b)const
+		{
+			unsigned long long w(matType < MatType::BandMat ? re.width : re.height);
+			if (matType == MatType::SparseMat)w = a.dim;
+			unsigned long long minDim(w > a.dim ? a.dim : w);
+			if (minDim)
+			{
+				bool overflow(ceiling4(minDim) > ceiling4(b.dim));
+				if (overflow && b.type != Type::Native)return b;
+				vecCplx const* source(&a);
+				vecCplx r;
+				if (&b == source)
+				{
+					source = &r;
+					r = a;
+				}
+				if (overflow)b.reconstruct(minDim, false);
+				switch (matType)
+				{
+				case MatType::NormalMat:
+				case MatType::SquareMat:
+				case MatType::DiagonalMat:
+				case MatType::SymmetricMat:
+				case MatType::LMat:
+				case MatType::UMat:
+					/*{
+						constexpr unsigned long long warp = 8;
+						unsigned long long minWidth4((minDim - 1) / 4 + 1);
+						__m256d* aData((__m256d*)data);
+						__m256d* bData((__m256d*)source->data);
+						__m256d* rData((__m256d*)b.data);
+						unsigned long long heightFloor4((height >> 2) << 2);
+						unsigned long long widthWarp((minWidth4 / warp) * warp);
+						unsigned long long warpLeftFloor((minDim >> 2) - widthWarp);
+						unsigned long long warpLeftCeiling(minWidth4 - widthWarp);
+						unsigned long long c0(0);
+						for (; c0 < heightFloor4; c0 += 4)
+						{
+							__m256d ans[4] = { 0 };
+							__m256d tp[warp];
+							unsigned long long c1(0);
+							for (; c1 < widthWarp; c1 += warp)
+							{
+								__m256d* s(aData + minWidth4 * c0 + c1);
+	#pragma unroll(4)
+								for (unsigned long long c2(0); c2 < warp; ++c2)
+									tp[c2] = bData[c1 + c2];
+								for (unsigned long long c2(0); c2 < 4; ++c2, s += minWidth4)
+								{
+	#pragma unroll(4)
+									for (unsigned long long c3(0); c3 < warp; ++c3)
+									{
+										__m256d t = s[c3];
+										ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+									}
+								}
+							}
+							if (c1 < minWidth4)
+							{
+								__m256d* s(aData + minWidth4 * c0 + c1);
+	#pragma unroll(4)
+								for (unsigned long long c2(0); c2 < warpLeftCeiling; ++c2)
+									tp[c2] = bData[c1 + c2];
+								unsigned long long finalWidth(minDim - ((minDim >> 2) << 2));
+								for (unsigned long long c2(finalWidth); c2 < 4; ++c2)
+									tp[warpLeftFloor].m256d_f64[c2] = 0;
+								for (unsigned long long c2(0); c2 < 4; ++c2, s += minWidth4)
+								{
+	#pragma unroll(4)
+									for (unsigned long long c3(0); c3 < warpLeftCeiling; ++c3)
+									{
+										__m256d t = s[c3];
+										ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+									}
+								}
+							}
+							__m256d s;
+							for (unsigned long long c1(0); c1 < 4; ++c1)
+							{
+								s.m256d_f64[c1] = ans[c1].m256d_f64[0];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[1];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[2];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[3];
+							}
+							rData[c0 >> 2] = s;
+						}
+						if (c0 < height)
+						{
+							unsigned long long heightLeft(height - heightFloor4);
+							__m256d ans[4] = { 0 };
+							__m256d tp[warp];
+							unsigned long long c1(0);
+							for (; c1 < widthWarp; c1 += warp)
+							{
+								__m256d* s(aData + minWidth4 * c0 + c1);
+	#pragma unroll(4)
+								for (unsigned long long c2(0); c2 < warp; ++c2)
+									tp[c2] = bData[c1 + c2];
+								for (unsigned long long c2(0); c2 < heightLeft; ++c2, s += minWidth4)
+								{
+	#pragma unroll(4)
+									for (unsigned long long c3(0); c3 < warp; ++c3)
+									{
+										__m256d t = s[c3];
+										ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+									}
+								}
+							}
+							if (c1 < minWidth4)
+							{
+								__m256d* s(aData + minWidth4 * c0 + c1);
+	#pragma unroll(4)
+								for (unsigned long long c2(0); c2 < warpLeftCeiling; ++c2)
+									tp[c2] = bData[c1 + c2];
+								unsigned long long finalWidth(minDim - ((minDim >> 2) << 2));
+								for (unsigned long long c2(finalWidth); c2 < 4; ++c2)
+									tp[warpLeftFloor].m256d_f64[c2] = 0;
+								for (unsigned long long c2(0); c2 < heightLeft; ++c2, s += minWidth4)
+								{
+	#pragma unroll(4)
+									for (unsigned long long c3(0); c3 < warpLeftCeiling; ++c3)
+									{
+										__m256d t = s[c3];
+										ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+									}
+								}
+							}
+							__m256d s;
+							for (unsigned long long c1(0); c1 < heightLeft; ++c1)
+							{
+								s.m256d_f64[c1] = ans[c1].m256d_f64[0];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[1];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[2];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[3];
+							}
+							rData[c0 >> 2] = s;
+						}
+						break;
+					}*/
+				case MatType::BandMat:
+					/*{
+						for (unsigned long long c0(0); c0 < height; ++c0)
+						{
+							vec tp(getBandRow(c0));
+							unsigned long long bgn(c0 <= halfBandWidth ? 0 : c0 - halfBandWidth);
+							vec ta(a.data + bgn, tp.dim, Type::Non32Aligened);
+							b.data[c0] = (tp, ta);
+						}
+						break;
+					}*/
+				case MatType::LBandMat:
+					/*{
+						for (unsigned long long c0(0); c0 < height; ++c0)
+						{
+							vec tp(getLBandRow(c0));
+							unsigned long long bgn(c0 <= halfBandWidth ? 0 : c0 - halfBandWidth);
+							vec ta(a.data + bgn, tp.dim, Type::Non32Aligened);
+							b.data[c0] = (tp, ta);
+						}
+						break;
+					}*/
+				case MatType::UBandMat:
+					/*{
+						for (unsigned long long c0(0); c0 < height; ++c0)
+						{
+							vec tp(getUBandRow(c0));
+							vec ta(a.data + c0, tp.dim, Type::Non32Aligened);
+							b.data[c0] = (tp, ta);
+						}
+						break;
+					}*/
+					break;
+				case MatType::SparseMat:
+				{
+					unsigned long long n(0);
+					for (unsigned long long c0(0); c0 < minDim && n < re.elementNum; ++c0)
+					{
+						b.re.data[c0] = 0;
+						b.im.data[c0] = 0;
+						if (re.rowIndice[n] > c0)continue;
+						else
+						{
+							while (n < re.elementNum)
+							{
+								if (re.rowIndice[n] > c0)break;
+								double red(re.data[n]);
+								unsigned long long rec(re.colIndice[n]);
+								b.re.data[c0] += red * a.re.data[rec];
+								b.im.data[c0] += red * a.im.data[rec];
+								n++;
+							}
+						}
+					}
+					n = 0;
+					for (unsigned long long c0(0); c0 < minDim && n < im.elementNum; ++c0)
+					{
+						if (im.rowIndice[n] > c0)continue;
+						else
+						{
+							while (n < im.elementNum)
+							{
+								if (im.rowIndice[n] > c0)break;
+								double red(im.data[n]);
+								unsigned long long rec(im.colIndice[n]);
+								b.re.data[c0] -= red * a.im.data[rec];
+								b.im.data[c0] += red * a.re.data[rec];
+								n++;
+							}
+						}
+					}
+				}
+				}
+				return b;
+			}
+		}
+		void printSparse()const
+		{
+			if ((re.data || im.data) && matType == MatType::SparseMat)
+			{
+				unsigned long long nre(0), nim(0);
+				unsigned long long c0(0), c1(0);
+				unsigned long long p0re, p0im, p1re, p1im;
+				unsigned long long maxP1(0);
+				bool flagre(nre < re.elementNum), flagim(nim < im.elementNum);
+				while (flagre || flagim)
+				{
+					if (flagre)
+					{
+						p0re = re.rowIndice[nre];
+						p1re = re.colIndice[nre];
+						if (maxP1 < p1re)maxP1 = p1re;
+					}
+					if (flagim)
+					{
+						p0im = im.rowIndice[nim];
+						p1im = im.colIndice[nim];
+						if (maxP1 < p1im)maxP1 = p1im;
+					}
+					unsigned long long minP0;
+					unsigned long long chosenP1;
+					unsigned long long which;
+					if (!flagim)
+					{
+						which = 1;
+						minP0 = p0re;
+						chosenP1 = p1re;
+					}
+					else if (!flagre)
+					{
+						which = 2;
+						minP0 = p0im;
+						chosenP1 = p1im;
+					}
+					else if (p0re < p0im)
+					{
+						which = 1;
+						minP0 = p0re;
+						chosenP1 = p1re;
+					}
+					else if (p0re == p0im)
+					{
+						minP0 = p0re;
+						if (p1re < p1im)
+						{
+							which = 1;
+							chosenP1 = p1re;
+						}
+						else if (p1re == p1im)
+						{
+							which = 3;
+							chosenP1 = p1re;
+						}
+						else if (p1re > p1im)
+						{
+							which = 2;
+							chosenP1 = p1im;
+						}
+					}
+					else if (p0re > p0im)
+					{
+						which = 2;
+						minP0 = p0im;
+						chosenP1 = p1im;
+					}
+					if (c0 < minP0)
+					{
+						for (; c1 <= maxP1; ++c1)
+							::printf("  0.0 + 0.0i, ");
+						::printf("\n");
+						++c0; c1 = 0;
+					}
+					for (; c0 < minP0; ++c0)
+					{
+						for (c1 = 0; c1 <= maxP1; ++c1)
+							::printf("  0.0 + 0.0i, ");
+						::printf("\n");
+						c1 = 0;
+					}
+					for (; c1 < chosenP1; ++c1)
+						::printf("  0.0 + 0.0i, ");
+					switch (which)
+					{
+					case 1: ::printf("%5.1f + 0.0i, ", re.data[nre++]); break;
+					case 2: ::printf("  0.0 +%2.1fi, ", im.data[nim++]); break;
+					case 3: ::printf("%5.1f +%2.1fi, ", re.data[nre++], im.data[nim++]); break;
+					}
+					++c1;
+					flagre = nre < re.elementNum;
+					flagim = nim < im.elementNum;
+				}
+				::printf("\n");
+			}
+		}
+	};
 
 	//non-in-situ mult mat
 	vec vec::operator()(mat const& a)const

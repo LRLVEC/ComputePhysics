@@ -35,23 +35,52 @@ int main()
 	//gg(jj).print();
 	//matSp(jj).print();
 
-	vecCplx vecCplxA(1024 * 1024);
-	vecCplx vecCplxB(1024 * 1024);
+	vecCplx vecCplxA(3);
+	vecCplx vecCplxB(3);
 	//vecCplx vecCplxC(1024 * 1024);
+	matCplx matCplxA(MatType::SparseMat, 4, 4);
+
+	matCplxA.re.data[0] = 1;
+	matCplxA.re.data[1] = 2;
+	matCplxA.re.data[2] = 3;
+	matCplxA.re.data[3] = 4;
+	matCplxA.im.data[0] = 8;
+	matCplxA.im.data[1] = 7;
+	matCplxA.im.data[2] = 6;
+	matCplxA.im.data[3] = 5;
+
+	matCplxA.re.rowIndice[0] = 0;
+	matCplxA.re.rowIndice[1] = 1;
+	matCplxA.re.rowIndice[2] = 2;
+	matCplxA.re.rowIndice[3] = 3;
+	matCplxA.im.rowIndice[0] = 0;
+	matCplxA.im.rowIndice[1] = 1;
+	matCplxA.im.rowIndice[2] = 2;
+	matCplxA.im.rowIndice[3] = 3;
+
+	matCplxA.re.colIndice[0] = 0;
+	matCplxA.re.colIndice[1] = 1;
+	matCplxA.re.colIndice[2] = 2;
+	matCplxA.re.colIndice[3] = 3;
+	matCplxA.im.colIndice[0] = 1;
+	matCplxA.im.colIndice[1] = 2;
+	matCplxA.im.colIndice[2] = 3;
+	matCplxA.im.colIndice[3] = 0;
+
+	matCplxA.printSparse();
 
 	randomVecCplx(vecCplxA, mt, rduint);
-	randomVecCplx(vecCplxB, mt, rduint);
+	//randomVecCplx(vecCplxB, mt, rduint);
 
-	//vecCplxA.print();
+	vecCplxA.print();
 	//vecCplxB.print();
-
 	timer.begin();
 	//vecCplxA /= vecCplxB;
-	
-	cplx t((vecCplxA, vecCplxB));
+	//cplx t(vecCplxA.normSquare());
+	matCplxA(vecCplxA, vecCplxB);
 	timer.end();
 	timer.print();
-	t.print();
+	vecCplxB.print();
 
 	//vecCplxA.print();
 
