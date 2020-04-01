@@ -110,16 +110,107 @@ namespace BLAS
 	{
 		double re;
 		double im;
+		cplx(double _re, double _im)
+			:
+			re(_re),
+			im(_im)
+		{
+		}
+
+		inline cplx& operator*=(double a)
+		{
+			re *= a;
+			im *= a;
+			return *this;
+		}
+		inline cplx& operator/=(double a)
+		{
+			re /= a;
+			im /= a;
+			return *this;
+		}
+		inline cplx& operator+=(cplx a)
+		{
+			re += a.re;
+			im += a.im;
+			return *this;
+		}
+		inline cplx& operator-=(cplx a)
+		{
+			re -= a.re;
+			im -= a.im;
+			return *this;
+		}
+		inline cplx& operator*=(cplx a)
+		{
+			double tp(re * a.re - im * a.im);
+			double ts(im * a.re + re * a.im);
+			re = tp;
+			im = ts;
+			return *this;
+		}
+		inline cplx& operator/=(cplx a)
+		{
+			double dv(a.re * a.re + a.im * a.im);
+			double tp(re * a.re + im * a.im);
+			double ts(im * a.re - re * a.im);
+			re = tp / dv;
+			im = ts / dv;
+			return *this;
+		}
+		inline cplx operator*(double a)const
+		{
+			return { re * a, im * a };
+		}
+		inline cplx operator/(double a)const
+		{
+			return { re / a, im / a };
+		}
+		inline cplx operator+(cplx a)const
+		{
+			return { re + a.re, im + a.im };
+		}
+		inline cplx operator-(cplx a)const
+		{
+			return { re - a.re, im - a.im };
+		}
+		inline cplx operator*(cplx a)const
+		{
+			return { re * a.re - im * a.im,im * a.re + re * a.im };
+		}
+		inline cplx operator/(cplx a)const
+		{
+			double dv(a.re * a.re + a.im * a.im);
+			return { (re * a.re + im * a.im) / dv,(im * a.re - re * a.im) / dv };
+		}
+
+		inline friend cplx operator-(cplx a)
+		{
+			return { -a.re, -a.im };
+		}
+		inline friend cplx operator/(double a, cplx b)
+		{
+			double dv(b.re * b.re + b.im * b.im);
+			return { b.re / dv, -b.im / dv };
+		}
 
 		double norm()const
 		{
 			return sqrt(re * re + im * im);
+		}
+		cplx transToPole()const
+		{
+			double arg(atan(im / re));
+			if (re < 0)arg += Pi;
+			return { sqrt(norm()),arg };
 		}
 		void print()const
 		{
 			::printf("(%.4e, %.4e)\n", re, im);
 		}
 	};
+
+
 	struct vec
 	{
 		double* data;
@@ -2021,7 +2112,11 @@ namespace BLAS
 		}
 		vec& solveConjugateGradient(vec const& a, vec& b, double _eps)const
 		{
-			unsigned long long minDim(height > a.dim ? a.dim : height);
+			unsigned long long minDim;
+			if (matType == MatType::SparseMat)
+				minDim = a.dim;
+			else
+				minDim = (height > a.dim ? a.dim : height);
 			if (!minDim)return b;
 			vec x0(b.data, minDim, Type::Parasitic);
 			vec r(minDim, false);
@@ -2056,7 +2151,7 @@ namespace BLAS
 			r -= a;
 			p = r;
 			double rNorm(r.norm2Square());
-			for (unsigned long long c0(0); c0 < 10000; ++c0)
+			for (unsigned long long c0(0); c0 < 100000; ++c0)
 			{
 				if (rNorm / minDim < _eps * _eps)
 				{
@@ -2216,7 +2311,10 @@ namespace BLAS
 		vecCplx(double* _re, double* _im, unsigned long long _length, Type _type)//Parasitic or Non32Aligened
 			:
 			re(_re, _length, _type),
-			im(_im, _length, _type)
+			im(_im, _length, _type),
+			dim(re.dim),
+			begining(re.begining),
+			type(_type)
 		{
 		}
 
@@ -2269,6 +2367,7 @@ namespace BLAS
 		{
 			re -= a.re;
 			im -= a.im;
+			return *this;
 		}
 		vecCplx& operator*=(vecCplx const& a)
 		{
@@ -2362,6 +2461,12 @@ namespace BLAS
 			}
 			return *this;
 		}
+		vecCplx& operator =(cplx a)
+		{
+			re = a.re;
+			im = a.im;
+			return *this;
+		}
 		vecCplx& operator+=(cplx a)
 		{
 			re += a.re;
@@ -2434,10 +2539,8 @@ namespace BLAS
 					__m256d a2 = aIm[c0];
 					__m256d b1 = bRe[c0];
 					__m256d b2 = bIm[c0];
-					a1 = _mm256_fmsub_pd(b2, c2, a1);
-					aRe[c0] = _mm256_fmadd_pd(b1, c1, a1);
-					a2 = _mm256_fmadd_pd(b1, c2, a2);
-					aIm[c0] = _mm256_fmadd_pd(b2, c1, a2);
+					aRe[c0] = _mm256_fnmadd_pd(b2, c2, _mm256_fmadd_pd(b1, c1, a1));
+					aIm[c0] = _mm256_fmadd_pd(b2, c1, _mm256_fmadd_pd(b1, c2, a2));
 				}
 				if ((c0 << 2) < minDim)
 					for (unsigned long long c1(c0 << 2); c1 < minDim; ++c1)
@@ -2476,7 +2579,7 @@ namespace BLAS
 					__m256d b2 = bIm[c0];
 					tpRe = _mm256_fmadd_pd(a1, b1, tpRe);
 					tpIm = _mm256_fmadd_pd(a2, b1, tpIm);
-					tpRe = _mm256_fmsub_pd(a2, b2, tpRe);
+					tpRe = _mm256_fnmadd_pd(a2, b2, tpRe);
 					tpIm = _mm256_fmadd_pd(a1, b2, tpIm);
 					for (unsigned long long c1(0); c1 < maxB; ++c1)
 						tpRe.m256d_f64[c1] = tpIm.m256d_f64[c1] = 0;
@@ -2492,7 +2595,7 @@ namespace BLAS
 					__m256d b2 = bIm[c0];
 					tpRe = _mm256_fmadd_pd(a1, b1, tpRe);
 					tpIm = _mm256_fmadd_pd(a2, b1, tpIm);
-					tpRe = _mm256_fmsub_pd(a2, b2, tpRe);
+					tpRe = _mm256_fnmadd_pd(a2, b2, tpRe);
 					tpIm = _mm256_fmadd_pd(a1, b2, tpIm);
 				}
 				for (unsigned long long c1(c0 << 2); c1 < minE; ++c1)
@@ -2514,7 +2617,72 @@ namespace BLAS
 				sIm += tpIm.m256d_f64[3];
 				return { sRe,sIm };
 			}
-			else return { 0 };
+			else return { 0,0 };
+		}
+		cplx dotConjugate(vecCplx const& a)const
+		{
+			if (a.dim && dim)
+			{
+				unsigned long long e0(dim + begining);
+				unsigned long long e1(a.dim + a.begining);
+				unsigned long long minE(e0 >= e1 ? e1 : e0);
+				double sRe(0), sIm(0);
+				unsigned long long maxB(begining >= a.begining ? begining : a.begining);
+				unsigned long long minDim4(minE >> 2);
+				__m256d* aRe((__m256d*)re.data);
+				__m256d* aIm((__m256d*)im.data);
+				__m256d* bRe((__m256d*)a.re.data);
+				__m256d* bIm((__m256d*)a.im.data);
+				unsigned long long c0(0);
+				__m256d tpRe = { 0 };
+				__m256d tpIm = { 0 };
+				if (begining)
+				{
+					__m256d a1 = aRe[c0];
+					__m256d a2 = aIm[c0];
+					__m256d b1 = bRe[c0];
+					__m256d b2 = bIm[c0];
+					tpRe = _mm256_fmadd_pd(a1, b1, tpRe);
+					tpIm = _mm256_fmadd_pd(a1, b2, tpIm);
+					tpRe = _mm256_fmadd_pd(a2, b2, tpRe);
+					tpIm = _mm256_fnmadd_pd(a2, b1, tpIm);
+					for (unsigned long long c1(0); c1 < maxB; ++c1)
+						tpRe.m256d_f64[c1] = tpIm.m256d_f64[c1] = 0;
+					++c0;
+				}
+				for (unsigned long long c1(minE); c1 < 4; ++c1)
+					tpRe.m256d_f64[c1] = tpIm.m256d_f64[c1] = 0;
+				for (; c0 < minDim4; ++c0)
+				{
+					__m256d a1 = aRe[c0];
+					__m256d a2 = aIm[c0];
+					__m256d b1 = bRe[c0];
+					__m256d b2 = bIm[c0];
+					tpRe = _mm256_fmadd_pd(a1, b1, tpRe);
+					tpIm = _mm256_fmadd_pd(a1, b2, tpIm);
+					tpRe = _mm256_fmadd_pd(a2, b2, tpRe);
+					tpIm = _mm256_fnmadd_pd(a2, b1, tpIm);
+				}
+				for (unsigned long long c1(c0 << 2); c1 < minE; ++c1)
+				{
+					double a1 = re.data[c1];
+					double a2 = im.data[c1];
+					double b1 = a.re.data[c1];
+					double b2 = a.im.data[c1];
+					sRe += a1 * b1 + a2 * b2;
+					sIm += a1 * b2 - a2 * b1;
+				}
+				sRe += tpRe.m256d_f64[0];
+				sRe += tpRe.m256d_f64[1];
+				sRe += tpRe.m256d_f64[2];
+				sRe += tpRe.m256d_f64[3];
+				sIm += tpIm.m256d_f64[0];
+				sIm += tpIm.m256d_f64[1];
+				sIm += tpIm.m256d_f64[2];
+				sIm += tpIm.m256d_f64[3];
+				return { sRe,sIm };
+			}
+			else return { 0,0 };
 		}
 		//normSquare (no complex conjugate)
 		cplx normSquare()const
@@ -2534,10 +2702,11 @@ namespace BLAS
 					__m256d a1 = aRe[c0];
 					__m256d a2 = aIm[c0];
 					__m256d tp = _mm256_mul_pd(a1, a2);
-					tp = _mm256_mul_pd({ 2,2,2,2 }, tp);
+					//tp = _mm256_mul_pd({ 2,2,2,2 }, tp);
 					tpRe = _mm256_fmadd_pd(a1, a1, tpRe);
 					tpIm = _mm256_add_pd(tpIm, tp);
-					tpRe = _mm256_fmsub_pd(a2, a2, tpRe);
+					tpIm = _mm256_add_pd(tpIm, tp);
+					tpRe = _mm256_fnmadd_pd(a2, a2, tpRe);
 					for (unsigned long long c1(0); c1 < begining; ++c1)
 						tpRe.m256d_f64[c1] = tpIm.m256d_f64[c1] = 0;
 					++c0;
@@ -2549,10 +2718,11 @@ namespace BLAS
 					__m256d a1 = aRe[c0];
 					__m256d a2 = aIm[c0];
 					__m256d tp = _mm256_mul_pd(a1, a2);
-					tp = _mm256_mul_pd({ 2,2,2,2 }, tp);
+					//tp = _mm256_mul_pd({ 2,2,2,2 }, tp);
 					tpRe = _mm256_fmadd_pd(a1, a1, tpRe);
 					tpIm = _mm256_add_pd(tpIm, tp);
-					tpRe = _mm256_fmsub_pd(a2, a2, tpRe);
+					tpIm = _mm256_add_pd(tpIm, tp);
+					tpRe = _mm256_fnmadd_pd(a2, a2, tpRe);
 				}
 				for (unsigned long long c1(c0 << 2); c1 < e0; ++c1)
 				{
@@ -2571,7 +2741,52 @@ namespace BLAS
 				sIm += tpIm.m256d_f64[3];
 				return { sRe,sIm };
 			}
-			else return { 0 };
+			else return { 0,0 };
+		}
+		//normSquare (complex conjugate)
+		cplx normSquareConjugate()const
+		{
+			if (dim)
+			{
+				unsigned long long e0(dim + begining);
+				double sRe(0);
+				unsigned long long minDim4(e0 >> 2);
+				__m256d* aRe((__m256d*)re.data);
+				__m256d* aIm((__m256d*)im.data);
+				unsigned long long c0(0);
+				__m256d tpRe = { 0 };
+				if (begining)
+				{
+					__m256d a1 = aRe[c0];
+					__m256d a2 = aIm[c0];
+					tpRe = _mm256_fmadd_pd(a1, a1, tpRe);
+					tpRe = _mm256_fmadd_pd(a2, a2, tpRe);
+					for (unsigned long long c1(0); c1 < begining; ++c1)
+						tpRe.m256d_f64[c1] = 0;
+					++c0;
+				}
+				for (unsigned long long c1(e0); c1 < 4; ++c1)
+					tpRe.m256d_f64[c1] = 0;
+				for (; c0 < minDim4; ++c0)
+				{
+					__m256d a1 = aRe[c0];
+					__m256d a2 = aIm[c0];
+					tpRe = _mm256_fmadd_pd(a1, a1, tpRe);
+					tpRe = _mm256_fmadd_pd(a2, a2, tpRe);
+				}
+				for (unsigned long long c1(c0 << 2); c1 < e0; ++c1)
+				{
+					double a1 = re.data[c1];
+					double a2 = im.data[c1];
+					sRe += a1 * a1 + a2 * a2;
+				}
+				sRe += tpRe.m256d_f64[0];
+				sRe += tpRe.m256d_f64[1];
+				sRe += tpRe.m256d_f64[2];
+				sRe += tpRe.m256d_f64[3];
+				return { sRe,0 };
+			}
+			else return { 0,0 };
 		}
 
 		void print()const
@@ -2594,6 +2809,14 @@ namespace BLAS
 		Type type;
 		MatType matType;
 
+		matCplx(unsigned long long _halfBandWidth, unsigned long long _height, MatType _type, bool _clear = true)
+			:
+			re(_halfBandWidth, _height, _type, _clear),
+			im(_halfBandWidth, _height, _type, _clear),
+			type(Type::Native),
+			matType(_type)
+		{
+		}
 		matCplx(MatType _type, unsigned long long _elementNumRe, unsigned long long _elementNumIm)
 			:
 			re(_type, _elementNumRe),
@@ -2601,6 +2824,37 @@ namespace BLAS
 			type(Type::Native),
 			matType(_type)
 		{
+		}
+
+		inline vecCplx const getLBandRow(unsigned long long a)const
+		{
+			vec tp(re.getLBandRow(a));
+			vec ts(im.getLBandRow(a));
+			return vecCplx(tp.data + tp.begining, ts.data + ts.begining, tp.dim, tp.type);
+		}
+		inline vecCplx const getUBandRow(unsigned long long a)const
+		{
+			vec tp(re.getUBandRow(a));
+			vec ts(im.getUBandRow(a));
+			return vecCplx(tp.data + tp.begining, ts.data + ts.begining, tp.dim, tp.type);
+		}
+		inline vecCplx const getLBandRowL(unsigned long long a)const
+		{
+			vec tp(re.getLBandRowL(a));
+			vec ts(im.getLBandRowL(a));
+			return vecCplx(tp.data + tp.begining, ts.data + ts.begining, tp.dim, tp.type);
+		}
+		inline vecCplx const getUBandRowU(unsigned long long a)const
+		{
+			vec tp(re.getUBandRowU(a));
+			vec ts(im.getUBandRowU(a));
+			return vecCplx(tp.data + tp.begining, ts.data + ts.begining, tp.dim, tp.type);
+		}
+
+		void clear()
+		{
+			re.clear();
+			im.clear();
 		}
 
 		vecCplx& operator()(vecCplx const& a, vecCplx& b)const
@@ -2754,27 +3008,30 @@ namespace BLAS
 						break;
 					}*/
 				case MatType::LBandMat:
-					/*{
-						for (unsigned long long c0(0); c0 < height; ++c0)
-						{
-							vec tp(getLBandRow(c0));
-							unsigned long long bgn(c0 <= halfBandWidth ? 0 : c0 - halfBandWidth);
-							vec ta(a.data + bgn, tp.dim, Type::Non32Aligened);
-							b.data[c0] = (tp, ta);
-						}
-						break;
-					}*/
-				case MatType::UBandMat:
-					/*{
-						for (unsigned long long c0(0); c0 < height; ++c0)
-						{
-							vec tp(getUBandRow(c0));
-							vec ta(a.data + c0, tp.dim, Type::Non32Aligened);
-							b.data[c0] = (tp, ta);
-						}
-						break;
-					}*/
+				{
+					for (unsigned long long c0(0); c0 < re.height; ++c0)
+					{
+						vecCplx tp(getLBandRow(c0));
+						unsigned long long bgn(c0 <= re.halfBandWidth ? 0 : c0 - re.halfBandWidth);
+						vecCplx ta(a.re.data + bgn, a.im.data + bgn, tp.dim, Type::Non32Aligened);
+						cplx ts((tp, ta));
+						b.re.data[c0] = ts.re;
+						b.im.data[c0] = ts.im;
+					}
 					break;
+				}
+				case MatType::UBandMat:
+				{
+					for (unsigned long long c0(0); c0 < re.height; ++c0)
+					{
+						vecCplx tp(getUBandRow(c0));
+						vecCplx ta(a.re.data + c0, a.im.data + c0, tp.dim, Type::Non32Aligened);
+						cplx ts((tp, ta));
+						b.re.data[c0] = ts.re;
+						b.im.data[c0] = ts.im;
+					}
+					break;
+				}
 				case MatType::SparseMat:
 				{
 					unsigned long long n(0);
@@ -2817,6 +3074,489 @@ namespace BLAS
 				}
 				return b;
 			}
+		}
+
+		vecCplx& daggerMult(vecCplx const& a, vecCplx& b)const
+		{
+			unsigned long long w(matType < MatType::BandMat ? re.width : re.height);
+			if (matType == MatType::SparseMat)w = a.dim;
+			unsigned long long minDim(w > a.dim ? a.dim : w);
+			if (minDim)
+			{
+				bool overflow(ceiling4(minDim) > ceiling4(b.dim));
+				if (overflow && b.type != Type::Native)return b;
+				vecCplx const* source(&a);
+				vecCplx r;
+				if (&b == source)
+				{
+					source = &r;
+					r = a;
+				}
+				if (overflow)b.reconstruct(minDim, false);
+				switch (matType)
+				{
+				case MatType::NormalMat:
+				case MatType::SquareMat:
+				case MatType::DiagonalMat:
+				case MatType::SymmetricMat:
+				case MatType::LMat:
+				case MatType::UMat:
+					/*{
+						constexpr unsigned long long warp = 8;
+						unsigned long long minWidth4((minDim - 1) / 4 + 1);
+						__m256d* aData((__m256d*)data);
+						__m256d* bData((__m256d*)source->data);
+						__m256d* rData((__m256d*)b.data);
+						unsigned long long heightFloor4((height >> 2) << 2);
+						unsigned long long widthWarp((minWidth4 / warp) * warp);
+						unsigned long long warpLeftFloor((minDim >> 2) - widthWarp);
+						unsigned long long warpLeftCeiling(minWidth4 - widthWarp);
+						unsigned long long c0(0);
+						for (; c0 < heightFloor4; c0 += 4)
+						{
+							__m256d ans[4] = { 0 };
+							__m256d tp[warp];
+							unsigned long long c1(0);
+							for (; c1 < widthWarp; c1 += warp)
+							{
+								__m256d* s(aData + minWidth4 * c0 + c1);
+	#pragma unroll(4)
+								for (unsigned long long c2(0); c2 < warp; ++c2)
+									tp[c2] = bData[c1 + c2];
+								for (unsigned long long c2(0); c2 < 4; ++c2, s += minWidth4)
+								{
+	#pragma unroll(4)
+									for (unsigned long long c3(0); c3 < warp; ++c3)
+									{
+										__m256d t = s[c3];
+										ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+									}
+								}
+							}
+							if (c1 < minWidth4)
+							{
+								__m256d* s(aData + minWidth4 * c0 + c1);
+	#pragma unroll(4)
+								for (unsigned long long c2(0); c2 < warpLeftCeiling; ++c2)
+									tp[c2] = bData[c1 + c2];
+								unsigned long long finalWidth(minDim - ((minDim >> 2) << 2));
+								for (unsigned long long c2(finalWidth); c2 < 4; ++c2)
+									tp[warpLeftFloor].m256d_f64[c2] = 0;
+								for (unsigned long long c2(0); c2 < 4; ++c2, s += minWidth4)
+								{
+	#pragma unroll(4)
+									for (unsigned long long c3(0); c3 < warpLeftCeiling; ++c3)
+									{
+										__m256d t = s[c3];
+										ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+									}
+								}
+							}
+							__m256d s;
+							for (unsigned long long c1(0); c1 < 4; ++c1)
+							{
+								s.m256d_f64[c1] = ans[c1].m256d_f64[0];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[1];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[2];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[3];
+							}
+							rData[c0 >> 2] = s;
+						}
+						if (c0 < height)
+						{
+							unsigned long long heightLeft(height - heightFloor4);
+							__m256d ans[4] = { 0 };
+							__m256d tp[warp];
+							unsigned long long c1(0);
+							for (; c1 < widthWarp; c1 += warp)
+							{
+								__m256d* s(aData + minWidth4 * c0 + c1);
+	#pragma unroll(4)
+								for (unsigned long long c2(0); c2 < warp; ++c2)
+									tp[c2] = bData[c1 + c2];
+								for (unsigned long long c2(0); c2 < heightLeft; ++c2, s += minWidth4)
+								{
+	#pragma unroll(4)
+									for (unsigned long long c3(0); c3 < warp; ++c3)
+									{
+										__m256d t = s[c3];
+										ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+									}
+								}
+							}
+							if (c1 < minWidth4)
+							{
+								__m256d* s(aData + minWidth4 * c0 + c1);
+	#pragma unroll(4)
+								for (unsigned long long c2(0); c2 < warpLeftCeiling; ++c2)
+									tp[c2] = bData[c1 + c2];
+								unsigned long long finalWidth(minDim - ((minDim >> 2) << 2));
+								for (unsigned long long c2(finalWidth); c2 < 4; ++c2)
+									tp[warpLeftFloor].m256d_f64[c2] = 0;
+								for (unsigned long long c2(0); c2 < heightLeft; ++c2, s += minWidth4)
+								{
+	#pragma unroll(4)
+									for (unsigned long long c3(0); c3 < warpLeftCeiling; ++c3)
+									{
+										__m256d t = s[c3];
+										ans[c2] = _mm256_fmadd_pd(t, tp[c3], ans[c2]);
+									}
+								}
+							}
+							__m256d s;
+							for (unsigned long long c1(0); c1 < heightLeft; ++c1)
+							{
+								s.m256d_f64[c1] = ans[c1].m256d_f64[0];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[1];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[2];
+								s.m256d_f64[c1] += ans[c1].m256d_f64[3];
+							}
+							rData[c0 >> 2] = s;
+						}
+						break;
+					}*/
+				case MatType::BandMat:
+					/*{
+						for (unsigned long long c0(0); c0 < height; ++c0)
+						{
+							vec tp(getBandRow(c0));
+							unsigned long long bgn(c0 <= halfBandWidth ? 0 : c0 - halfBandWidth);
+							vec ta(a.data + bgn, tp.dim, Type::Non32Aligened);
+							b.data[c0] = (tp, ta);
+						}
+						break;
+					}*/
+				case MatType::LBandMat:
+					/*{
+						for (unsigned long long c0(0); c0 < re.height; ++c0)
+						{
+							vecCplx tp(getLBandRow(c0));
+							unsigned long long bgn(c0 <= re.halfBandWidth ? 0 : c0 - re.halfBandWidth);
+							vecCplx ta(a.re.data + bgn, a.im.data + bgn, tp.dim, Type::Non32Aligened);
+							cplx ts((tp, ta));
+							b.re.data[c0] = ts.re;
+							b.im.data[c0] = ts.im;
+						}
+						break;
+					}*/
+				case MatType::UBandMat:
+					/*{
+						for (unsigned long long c0(0); c0 < re.height; ++c0)
+						{
+							vecCplx tp(getUBandRow(c0));
+							vecCplx ta(a.re.data + c0, a.im.data + c0, tp.dim, Type::Non32Aligened);
+							cplx ts((tp, ta));
+							b.re.data[c0] = ts.re;
+							b.im.data[c0] = ts.im;
+						}
+						break;
+					}*/
+				case MatType::SparseMat:
+				{
+					unsigned long long n(0);
+					for (unsigned long long c0(0); c0 < minDim && n < re.elementNum; ++c0)
+					{
+						b.re.data[c0] = 0;
+						b.im.data[c0] = 0;
+						if (re.rowIndice[n] > c0)continue;
+						else
+						{
+							while (n < re.elementNum)
+							{
+								if (re.rowIndice[n] > c0)break;
+								double red(re.data[n]);
+								unsigned long long rec(re.colIndice[n]);
+								b.re.data[c0] += red * a.re.data[rec];
+								b.im.data[c0] += red * a.im.data[rec];
+								n++;
+							}
+						}
+					}
+					n = 0;
+					for (unsigned long long c0(0); c0 < minDim && n < im.elementNum; ++c0)
+					{
+						if (im.rowIndice[n] > c0)continue;
+						else
+						{
+							while (n < im.elementNum)
+							{
+								if (im.rowIndice[n] > c0)break;
+								double red(im.data[n]);
+								unsigned long long rec(im.colIndice[n]);
+								b.re.data[c0] += red * a.im.data[rec];
+								b.im.data[c0] -= red * a.re.data[rec];
+								n++;
+							}
+						}
+					}
+				}
+				}
+				return b;
+			}
+		}
+
+		vecCplx& solveL(vecCplx const& a, vecCplx& b)const
+		{
+			unsigned long long minDim(re.height > a.dim ? a.dim : re.height);
+			if (!minDim)return b;
+			if (b.dim < minDim)
+			{
+				if (b.type == Type::Native)b.reconstruct(minDim, false);
+				else return b;
+			}
+			cplx ll(re.data[0], im.data[0]);
+			if (ll.re == 0.0 && ll.im == 0.0)return b;
+			cplx ts(a.re.data[0], a.im.data[0]);
+			ts /= ll;
+			b.re.data[0] = ts.re;
+			b.im.data[0] = ts.im;
+			unsigned long long c0(1);
+			if (matType == MatType::LBandMat && a.dim >= re.height)
+			{
+				for (; c0 < re.height; ++c0)
+				{
+					ll.re = re.LBandEle(c0, c0);
+					ll.im = im.LBandEle(c0, c0);
+					if (ll.re == 0.0 && ll.im == 0.0)return b;
+					vecCplx tp(getLBandRowL(c0));
+					unsigned long long bgn(c0 <= re.halfBandWidth ? 0 : c0 - re.halfBandWidth);
+					vecCplx tb(b.re.data + bgn, b.im.data + bgn, tp.dim, Type::Non32Aligened);
+					cplx dt((tp, tb));
+					ts.re = a.re.data[c0];
+					ts.im = a.im.data[c0];
+					ts -= dt;
+					ts /= ll;
+					b.re.data[c0] = ts.re;
+					b.im.data[c0] = ts.im;
+				}
+			}
+			else
+			{
+				for (; c0 < minDim; ++c0)
+				{
+					ll.re = re.data[c0 * re.width4d + c0];
+					ll.im = re.data[c0 * im.width4d + c0];
+					if (ll.re == 0.0 && ll.im == 0.0)return b;
+					vecCplx tp(re.data + c0 * re.width4d, im.data + c0 * im.width4d, c0, Type::Parasitic);
+					cplx dt((tp, b));
+					ts.re = a.re.data[c0];
+					ts.im = a.im.data[c0];
+					ts -= dt;
+					ts /= ll;
+					b.re.data[c0] = ts.re;
+					b.im.data[c0] = ts.im;
+				}
+			}
+			return b;
+		}
+		vecCplx& solveUid(vecCplx const& a, vecCplx& b)const
+		{
+			//assuming that mat[i][i]==1
+			unsigned long long minDim(re.height > a.dim ? a.dim : re.height);
+			if (!minDim)return b;
+			if (b.dim < minDim)
+			{
+				if (b.type == Type::Native)b.reconstruct(minDim, false);
+				else return b;
+			}
+			long long c0(minDim - 1);
+			b.re.data[c0] = a.re.data[c0];
+			b.im.data[c0] = a.im.data[c0];
+			--c0;
+			if (matType == MatType::UBandMat && a.dim >= re.height)
+			{
+				for (; c0 >= 0; --c0)
+				{
+					vecCplx tp(getUBandRowU(c0));
+					vecCplx tb(b.re.data + c0 + 1, b.im.data + c0 + 1, tp.dim, Type::Non32Aligened);
+					cplx dt((tp, tb));
+					b.re.data[c0] = a.re.data[c0] - dt.re;
+					b.im.data[c0] = a.im.data[c0] - dt.im;
+				}
+			}
+			else
+			{
+				for (; c0 >= 0; --c0)
+				{
+					unsigned long long c01(c0 + 1);
+					vecCplx tp(re.data + c0 * re.width4d + c01, im.data + c0 * im.width4d + c01, minDim - c01, Type::Non32Aligened);
+					vecCplx tb(b.re.data + c01, b.im.data + c01, minDim - c01, Type::Non32Aligened);
+					cplx dt((tp, tb));
+					b.re.data[c0] = a.re.data[c0] - dt.re;
+					b.im.data[c0] = a.im.data[c0] - dt.im;
+				}
+			}
+			return b;
+		}
+		vecCplx& solveCholeskyBand(vecCplx const& a, vecCplx& b)//bug...
+		{
+			unsigned long long minDim(re.height > a.dim ? a.dim : re.height);
+			if (!minDim)return b;
+			if (b.dim < minDim)
+			{
+				if (b.type == Type::Native)b.reconstruct(minDim, false);
+				else return b;
+			}
+			cplx s(1.0 / cplx(re.data[0], im.data[0]));
+			vecCplx tp(minDim, false);
+			tp.re[0] = s.re;
+			tp.im[0] = s.im;
+			matCplx uM(re.halfBandWidth, re.height, MatType::UBandMat, true);
+			for (unsigned long long c0(1); c0 < 1 + re.halfBandWidth; ++c0)
+			{
+				cplx ts(re.data[c0 * re.width4d], im.data[c0 * im.width4d]);
+				ts *= s;
+				uM.re.data[c0] = ts.re;
+				uM.im.data[c0] = ts.im;
+			}
+			for (unsigned long long c0(1); c0 < minDim; ++c0)
+			{
+				unsigned long long len(c0 <= re.halfBandWidth ? c0 : re.halfBandWidth);
+				unsigned long long bgn(re.LBandBeginOffset(c0));
+				unsigned long long len4(ceiling4(len + bgn));
+				vecCplx tll(re.data + c0 * re.width4d, im.data + c0 * im.width4d, len4, Type::Parasitic);
+				vecCplx bll(b.re.data, b.im.data, len4, Type::Parasitic);
+				unsigned long long tbgn(c0 <= re.halfBandWidth ? 0 : c0 - (long long(c0 - re.halfBandWidth) / 4) * 4);
+				vecCplx pll(tp.re.data + ((c0 - len) & -4), tp.im.data + ((c0 - len) & -4), len4, Type::Parasitic);
+				bll = tll; bll *= pll;
+				vecCplx bn(b.re.data + bgn, b.im.data + bgn, len, Type::Non32Aligened);
+				cplx dt((bn, tll));
+				dt.re = (re.LBandEleRef(c0, c0) -= dt.re);
+				dt.im = (im.LBandEleRef(c0, c0) -= dt.im);
+				dt = 1 / dt;
+				tp.re.data[c0] = dt.re;
+				tp.im.data[c0] = dt.im;
+				unsigned long long c1(c0 + 1);
+				for (; c1 < c0 + re.halfBandWidth && c1 < minDim; ++c1)
+				{
+					unsigned long long bgn1(re.LBandBeginOffset(c1));
+					unsigned long long end1(c1 <= re.halfBandWidth ? c0 : c0 - (long long(c1 - re.halfBandWidth) / 4) * 4);
+					if (c1 > re.halfBandWidth && bgn1 == 0)
+					{
+						bll.re.data += 4;
+						bll.im.data += 4;
+						bll.dim -= 4;
+						bll.re.dim -= 4;
+						bll.im.dim -= 4;
+					}
+					dt = (bll, vecCplx(re.data + c1 * re.width4d + bgn1, im.data + c1 * im.width4d + bgn1,
+						end1 - bgn1, Type::Non32Aligened));
+					dt.re = (re.data[c1 * re.width4d + end1] -= dt.re);
+					dt.im = (im.data[c1 * im.width4d + end1] -= dt.im);
+					dt *= cplx(tp.re[c0], tp.im[c0]);
+					uM.re.UBandEleRef(c0, c1) = dt.re;
+					uM.im.UBandEleRef(c0, c1) = dt.im;
+				}
+				if (c1 == c0 + re.halfBandWidth && c1 < minDim)
+				{
+					unsigned long long end1(c1 <= re.halfBandWidth ? c0 : c0 - (long long(c1 - re.halfBandWidth) / 4) * 4);
+					dt = cplx(re.data[c1 * re.width4d + end1], im.data[c1 * im.width4d + end1]) *
+						cplx(tp.re[c0], tp.im[c0]);
+					uM.re.UBandEleRef(c0, c1) = dt.re;
+					uM.im.UBandEleRef(c0, c1) = dt.im;
+				}
+			}
+			solveL(a, tp);
+			uM.solveUid(tp, b);
+			return b;
+		}
+		vecCplx& solveConjugateGradient(vecCplx const& a, vecCplx& b, double _eps)const
+		{
+			unsigned long long minDim;
+			if (matType == MatType::SparseMat)
+				minDim = a.dim;
+			else
+				minDim = (re.height > a.dim ? a.dim : re.height);
+			if (!minDim)return b;
+			vecCplx x0(b.re.data, b.im.data, minDim, Type::Parasitic);
+			vecCplx r(minDim, false);
+			vecCplx p(minDim, false);
+			vecCplx Ap(minDim, false);
+			x0 = cplx{ 0, 0 };
+			(*this)(x0, r);
+			r -= a;
+			p = r;
+			cplx rNorm(r.normSquare());
+			for (unsigned long long c0(0); c0 < 100000; ++c0)
+			{
+				if (abs(rNorm.re) + abs(rNorm.im) < minDim * _eps * _eps)
+				{
+					::printf("iters:\t%d\n", c0);
+					return b;
+				}
+				(*this)(p, Ap);
+				cplx alpha(-rNorm / (Ap, p));
+				x0.fmadd(alpha, p);
+				r.fmadd(alpha, Ap);
+				cplx rNorm1(rNorm);
+				rNorm = r.normSquare();
+				cplx beta(rNorm / rNorm1);
+				p *= beta;
+				p += r;
+			}
+			return b;
+		}
+		vecCplx& solveConjugateGradientDagger(vecCplx const& a, vecCplx& b, double _eps)const
+		{
+			unsigned long long minDim;
+			if (matType == MatType::SparseMat)
+				minDim = a.dim;
+			else
+				minDim = (re.height > a.dim ? a.dim : re.height);
+			if (!minDim)return b;
+			vecCplx a1(minDim, false);
+			vecCplx x0(b.re.data, b.im.data, minDim, Type::Parasitic);
+			vecCplx r(minDim, false);
+			vecCplx p(minDim, false);
+			vecCplx Ap(minDim, false);
+			vecCplx tp(minDim, false);
+			(*this).daggerMult(a, a1);
+			x0 = cplx{ 0, 0 };
+			(*this)(x0, tp);
+			(*this).daggerMult(tp, r);
+			r -= a1;
+			p = r;
+			double rNorm(r.normSquareConjugate().re);
+			for (unsigned long long c0(0); c0 < 100000; ++c0)
+			{
+				if (rNorm < minDim * _eps * _eps)
+				{
+					::printf("iters:\t%d\n", c0);
+					return b;
+				}
+				(*this)(p, tp);
+				double tpd(tp.normSquareConjugate().re);
+				(*this).daggerMult(tp, Ap);
+				double alpha(-rNorm / tpd);
+				x0.fmadd(alpha, p);
+				r.fmadd(alpha, Ap);
+				double rNorm1(rNorm);
+				rNorm = r.normSquareConjugate().re;
+				double beta(rNorm / rNorm1);
+				p.re *= beta;
+				p.im *= beta;
+				p += r;
+			}
+			return b;
+		}
+
+		void print()const
+		{
+			::printf("[\n");
+			if (re.data)
+			{
+				for (unsigned long long c0(0); c0 < re.height; ++c0)
+				{
+					::printf("\t[(%4.4f, %4.4f)", re.data[re.width4d * c0], im.data[im.width4d * c0]);
+					unsigned long long ed(re.width);
+					if (matType >= MatType::BandMat && matType < MatType::SparseMat)
+						ed = re.width4d;
+					for (unsigned long long c1(1); c1 < ed; ++c1)
+						::printf(", (%4.4f, %4.4f)", re.data[re.width4d * c0 + c1], im.data[im.width4d * c0 + c1]);
+					::printf("]\n");
+				}
+			}
+			::printf("]\n");
 		}
 		void printSparse()const
 		{
@@ -2914,6 +3654,23 @@ namespace BLAS
 					flagim = nim < im.elementNum;
 				}
 				::printf("\n");
+			}
+		}
+		void printToTableTxt(char const* name)const
+		{
+			//in the form of Mathematica matrix (for Import, use ImportString[StringReplace["E://...", {"e+" :> "*^", "e-" :> "*^-"}, "String"], "Package"])
+			if (re.data)
+			{
+				FILE* temp(::fopen(name, "w+"));
+				::fprintf(temp, "{\n");
+				for (unsigned long long c0(0); c0 < re.height; ++c0)
+				{
+					::fprintf(temp, "{%.14e+%.14e*I", re.data[re.width4d * c0], im.data[im.width4d * c0]);
+					for (unsigned long long c1(1); c1 < re.width4d; ++c1)
+						::fprintf(temp, ", %.14e+%.14e*I", re.data[re.width4d * c0 + c1], im.data[im.width4d * c0 + c1]);
+					::fprintf(temp, c0 == re.height - 1 ? "}\n" : "},\n");
+				}
+				::fprintf(temp, "}");
 			}
 		}
 	};

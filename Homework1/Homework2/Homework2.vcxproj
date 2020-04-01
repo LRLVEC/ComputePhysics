@@ -20,7 +20,7 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
-    <ProjectGuid>{C2486C37-392B-4EB8-99B1-A7A5B9E4D2F9}</ProjectGuid>
+    <ProjectGuid>{F565CF29-E87A-4ED3-9845-DBADCAC10EA2}</ProjectGuid>
     <RootNamespace>Homework1</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -145,7 +145,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ResistanceGrid.cpp" />
+    <ClCompile Include="LogisticModel.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\_BLAS.h" />
