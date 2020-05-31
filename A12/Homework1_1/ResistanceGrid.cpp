@@ -1008,18 +1008,18 @@ int main()
 
 	constexpr double eps(1e-18);
 
-	//SquareGrid<1>sq1_1(1, 1);
-	//sq1_1.solveCholesky();
-	//sq1_1.solveConjugateGradientSparse(eps);
-	//SquareGrid<4>sq4_1(4, 4);
-	//sq4_1.solveCholesky();
-	//sq4_1.solveConjugateGradientSparse(eps);
-	//SquareGrid<16>sq16_1(16, 16);
-	//sq16_1.solveCholesky();
-	//sq16_1.solveConjugateGradientSparse(eps);
-	//SquareGrid<64>sq64_1(64, 64);
-	//sq64_1.solveCholesky();
-	//sq64_1.solveConjugateGradientSparse(eps);
+	SquareGrid<1>sq1_1(1, 1);
+	sq1_1.solveCholesky();
+	sq1_1.solveConjugateGradientSparse(eps);
+	SquareGrid<4>sq4_1(4, 4);
+	sq4_1.solveCholesky();
+	sq4_1.solveConjugateGradientSparse(eps);
+	SquareGrid<16>sq16_1(16, 16);
+	sq16_1.solveCholesky();
+	sq16_1.solveConjugateGradientSparse(eps);
+	SquareGrid<64>sq64_1(64, 64);
+	sq64_1.solveCholesky();
+	sq64_1.solveConjugateGradientSparse(eps);
 	//SquareGrid<256>sq256_1(256, 256);
 	//sq256_1.solveCholesky();
 	//sq256_1.solveConjugateGradientSparse(eps);
@@ -1027,20 +1027,20 @@ int main()
 	//sq1024_1.solveCholesky();
 	//sq1024_1.solveConjugateGradientSparse(eps);
 
-	//::printf("\n");
+	::printf("\n");
 
-	//SquareGrid<1>sq1_2(0, 1);
-	//sq1_2.solveCholesky();
-	//sq1_2.solveConjugateGradientSparse(eps);
-	//SquareGrid<4>sq4_2(0, 4);
-	//sq4_2.solveCholesky();
-	//sq4_2.solveConjugateGradientSparse(eps);
-	//SquareGrid<16>sq16_2(0, 16);
-	//sq16_2.solveCholesky();
-	//sq16_2.solveConjugateGradientSparse(eps);
-	//SquareGrid<64>sq64_2(0, 64);
-	//sq64_2.solveCholesky();
-	//sq64_2.solveConjugateGradientSparse(eps);
+	SquareGrid<1>sq1_2(0, 1);
+	sq1_2.solveCholesky();
+	sq1_2.solveConjugateGradientSparse(eps);
+	SquareGrid<4>sq4_2(0, 4);
+	sq4_2.solveCholesky();
+	sq4_2.solveConjugateGradientSparse(eps);
+	SquareGrid<16>sq16_2(0, 16);
+	sq16_2.solveCholesky();
+	sq16_2.solveConjugateGradientSparse(eps);
+	SquareGrid<64>sq64_2(0, 64);
+	sq64_2.solveCholesky();
+	sq64_2.solveConjugateGradientSparse(eps);
 	//SquareGrid<256>sq256_2(0, 256);
 	//sq256_2.solveCholesky();
 	//sq256_2.solveConjugateGradientSparse(eps);
@@ -1048,20 +1048,20 @@ int main()
 	//sq1024_2.solveCholesky();
 	//sq1024_2.solveConjugateGradientSparse(eps);
 
-	//::printf("\n");
+	::printf("\n");
 
-	//TriangleGrid<1>tr1(1, 0);
-	//tr1.solveCholesky();
-	//tr1.solveConjugateGradientSparse(eps);
-	//TriangleGrid<4>tr4(4, 0);
-	//tr4.solveCholesky();
-	//tr4.solveConjugateGradientSparse(eps);
-	//TriangleGrid<16>tr16(16, 0);
-	//tr16.solveCholesky();
-	//tr16.solveConjugateGradientSparse(eps);
-	//TriangleGrid<64>tr64(64, 0);
-	//tr64.solveCholesky();
-	//tr64.solveConjugateGradientSparse(eps);
+	TriangleGrid<1>tr1(1, 0);
+	tr1.solveCholesky();
+	tr1.solveConjugateGradientSparse(eps);
+	TriangleGrid<4>tr4(4, 0);
+	tr4.solveCholesky();
+	tr4.solveConjugateGradientSparse(eps);
+	TriangleGrid<16>tr16(16, 0);
+	tr16.solveCholesky();
+	tr16.solveConjugateGradientSparse(eps);
+	TriangleGrid<64>tr64(64, 0);
+	tr64.solveCholesky();
+	tr64.solveConjugateGradientSparse(eps);
 	//TriangleGrid<256>tr256(256, 0);
 	//tr256.solveCholesky();
 	//tr256.solveConjugateGradientSparse(eps);
@@ -1069,17 +1069,17 @@ int main()
 	//tr1024.solveCholesky();
 	//tr1024.solveConjugateGradientSparse(eps);
 
-	//::printf("\n");
+	::printf("\n");
 
-	//HexagonGrid<4>he4(3, 0);
-	//he4.solveCholesky();
-	//he4.solveConjugateGradientSparse(eps);
-	//HexagonGrid<16>he16(15, 0);
-	//he16.solveCholesky();
-	//he16.solveConjugateGradientSparse(eps);
-	//HexagonGrid<64>he64(63, 0);
-	//he64.solveCholesky();
-	//he64.solveConjugateGradientSparse(eps);
+	HexagonGrid<4>he4(3, 0);
+	he4.solveCholesky();
+	he4.solveConjugateGradientSparse(eps);
+	HexagonGrid<16>he16(15, 0);
+	he16.solveCholesky();
+	he16.solveConjugateGradientSparse(eps);
+	HexagonGrid<64>he64(63, 0);
+	he64.solveCholesky();
+	he64.solveConjugateGradientSparse(eps);
 	//HexagonGrid<256>he256(255, 0);
 	//he256.solveCholesky();
 	//he256.solveConjugateGradientSparse(eps);
@@ -1087,25 +1087,25 @@ int main()
 	//he1024.solveCholesky();
 	//he1024.solveConjugateGradientSparse(eps);
 
-	//timer.end();
-	//timer.print("Total time:");
+	timer.end();
+	timer.print("Total time:");
 
-	TriangleGridCplx2Real<1>trCplx2Real1(1, 0);
-	TriangleGridCplx2Real<4>trCplx2Real4(4, 0);
-	TriangleGridCplx2Real<16>trCplx2Real16(16, 0);
-	TriangleGridCplx2Real<64>trCplx2Real64(64, 0);
-	TriangleGridCplx<1>trCplx1(1, 0);
-	TriangleGridCplx<4>trCplx4(4, 0);
-	TriangleGridCplx<16>trCplx16(16, 0);
-	TriangleGridCplx<64>trCplx64(64, 0);
+	//TriangleGridCplx2Real<1>trCplx2Real1(1, 0);
+	//TriangleGridCplx2Real<4>trCplx2Real4(4, 0);
+	//TriangleGridCplx2Real<16>trCplx2Real16(16, 0);
+	//TriangleGridCplx2Real<64>trCplx2Real64(64, 0);
+	//TriangleGridCplx<1>trCplx1(1, 0);
+	//TriangleGridCplx<4>trCplx4(4, 0);
+	//TriangleGridCplx<16>trCplx16(16, 0);
+	//TriangleGridCplx<64>trCplx64(64, 0);
 
-	unsigned long long points(125);
-	vec omega(points, false);
-	vecCplx ansCho1(points, false);
-	vecCplx ansCho4(points, false);
-	vecCplx ansCho16(points, false);
-	vecCplx ansCho64(points, false);
-	vecCplx ansCon(points, false);
+	//unsigned long long points(125);
+	//vec omega(points, false);
+	//vecCplx ansCho1(points, false);
+	//vecCplx ansCho4(points, false);
+	//vecCplx ansCho16(points, false);
+	//vecCplx ansCho64(points, false);
+	//vecCplx ansCon(points, false);
 
 
 	//for (unsigned long long c0(0); c0 < points; ++c0)
@@ -1129,37 +1129,37 @@ int main()
 	//	ansCho64.im[c0] = trCplx64.rCholesky.im;
 	//}
 
-	trCplx2Real1.setGrid(0.5);
-	trCplx2Real1.solveCholesky();
-	trCplx2Real1.solveConjugateGradientSparse(eps);
-	trCplx1.setGrid(0.5);
-	trCplx1.solveCholesky();
-	trCplx1.solveConjugateGradientSparse(eps);
-	trCplx1.solveConjugateGradientSparseDagger(eps);
+	//trCplx2Real1.setGrid(0.5);
+	//trCplx2Real1.solveCholesky();
+	//trCplx2Real1.solveConjugateGradientSparse(eps);
+	//trCplx1.setGrid(0.5);
+	//trCplx1.solveCholesky();
+	//trCplx1.solveConjugateGradientSparse(eps);
+	//trCplx1.solveConjugateGradientSparseDagger(eps);
 
-	trCplx2Real4.setGrid(0.5);
-	trCplx2Real4.solveCholesky();
-	trCplx2Real4.solveConjugateGradientSparse(eps);
-	trCplx4.setGrid(0.5);
-	trCplx4.solveCholesky();
-	trCplx4.solveConjugateGradientSparse(eps);
-	trCplx4.solveConjugateGradientSparseDagger(eps);
+	//trCplx2Real4.setGrid(0.5);
+	//trCplx2Real4.solveCholesky();
+	//trCplx2Real4.solveConjugateGradientSparse(eps);
+	//trCplx4.setGrid(0.5);
+	//trCplx4.solveCholesky();
+	//trCplx4.solveConjugateGradientSparse(eps);
+	//trCplx4.solveConjugateGradientSparseDagger(eps);
 
-	trCplx2Real16.setGrid(0.5);
-	trCplx2Real16.solveCholesky();
-	trCplx2Real16.solveConjugateGradientSparse(eps);
-	trCplx16.setGrid(0.5);
-	trCplx16.solveCholesky();
-	trCplx16.solveConjugateGradientSparse(eps);
-	trCplx16.solveConjugateGradientSparseDagger(eps);
+	//trCplx2Real16.setGrid(0.5);
+	//trCplx2Real16.solveCholesky();
+	//trCplx2Real16.solveConjugateGradientSparse(eps);
+	//trCplx16.setGrid(0.5);
+	//trCplx16.solveCholesky();
+	//trCplx16.solveConjugateGradientSparse(eps);
+	//trCplx16.solveConjugateGradientSparseDagger(eps);
 
-	trCplx2Real64.setGrid(0.5);
-	trCplx2Real64.solveCholesky();
-	trCplx2Real64.solveConjugateGradientSparse(eps);
-	trCplx64.setGrid(0.5);
-	trCplx64.solveCholesky();
-	trCplx64.solveConjugateGradientSparse(eps);
-	trCplx64.solveConjugateGradientSparseDagger(eps);
+	//trCplx2Real64.setGrid(0.5);
+	//trCplx2Real64.solveCholesky();
+	//trCplx2Real64.solveConjugateGradientSparse(eps);
+	//trCplx64.setGrid(0.5);
+	//trCplx64.solveCholesky();
+	//trCplx64.solveConjugateGradientSparse(eps);
+	//trCplx64.solveConjugateGradientSparseDagger(eps);
 
 	//FILE* temp(::fopen("ans.txt", "w+"));
 	//for (unsigned long long c0(0); c0 < points; ++c0)
