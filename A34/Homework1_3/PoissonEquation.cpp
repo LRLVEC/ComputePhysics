@@ -114,7 +114,7 @@ template<unsigned long long _dim>struct Grid
 		for (unsigned long long c0(0); c0 < dim; ++c0)
 			for (unsigned long long c1(0); c1 < dim; ++c1)
 				er += blockL2Error(c0, c1);
-		return er;
+		return sqrt(er);
 	}
 };
 
@@ -140,26 +140,47 @@ int main()
 	Grid<16>grid16(f, answer);
 	timer.end();
 	timer.print("Time used: ");
-	::printf("\tError:\t%.2e\n", grid16.L2Error);
+	::printf("MaxError:\t%.2e\tL2Error:\t%.2e\n", grid16.maxDelta(), grid16.L2Error);
 
 	::printf("Grid<32>:\t");
 	timer.begin();
 	Grid<32>grid32(f, answer);
 	timer.end();
 	timer.print("Time used: ");
-	::printf("\tError:\t%.2e\n", grid32.L2Error);
+	::printf("MaxError:\t%.2e\tL2Error:\t%.2e\n", grid32.maxDelta(), grid32.L2Error);
 
 	::printf("Grid<64>:\t");
 	timer.begin();
 	Grid<64>grid64(f, answer);
 	timer.end();
 	timer.print("Time used: ");
-	::printf("\tError:\t%.2e\n", grid64.L2Error);
+	::printf("MaxError:\t%.2e\tL2Error:\t%.2e\n", grid64.maxDelta(), grid64.L2Error);
 
 	::printf("Grid<128>:\t");
 	timer.begin();
 	Grid<128>grid128(f, answer);
 	timer.end();
 	timer.print("Time used: ");
-	::printf("\tError:\t%.2e\n", grid128.L2Error);
+	::printf("MaxError:\t%.2e\tL2Error:\t%.2e\n", grid128.maxDelta(), grid128.L2Error);
+
+	::printf("Grid<256>:\t");
+	timer.begin();
+	Grid<256>grid256(f, answer);
+	timer.end();
+	timer.print("Time used: ");
+	::printf("MaxError:\t%.2e\tL2Error:\t%.2e\n", grid256.maxDelta(), grid256.L2Error);
+
+	::printf("Grid<512>:\t");
+	timer.begin();
+	Grid<512>grid512(f, answer);
+	timer.end();
+	timer.print("Time used: ");
+	::printf("MaxError:\t%.2e\tL2Error:\t%.2e\n", grid512.maxDelta(), grid512.L2Error);
+
+	::printf("Grid<1024>:\t");
+	timer.begin();
+	Grid<1024>grid1024(f, answer);
+	timer.end();
+	timer.print("Time used: ");
+	::printf("MaxError:\t%.2e\tL2Error:\t%.2e\n", grid1024.maxDelta(), grid1024.L2Error);
 }
