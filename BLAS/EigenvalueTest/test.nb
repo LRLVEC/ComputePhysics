@@ -1,0 +1,135 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 11.3' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      4992,        127]
+NotebookOptionsPosition[      4461,        109]
+NotebookOutlinePosition[      4820,        125]
+CellTagsIndexPosition[      4777,        122]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[BoxData[""], "Input",
+ CellChangeTimes->{{3.800245901388028*^9, 
+  3.800245917953127*^9}},ExpressionUUID->"740028d5-1bed-49ef-87f1-\
+513b7ea76d72"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"mat", "=", 
+   RowBox[{"Import", "[", 
+    RowBox[{
+    "\"\<E:\\\\files\\\\C++\\\\ComputePhysics\\\\BLAS\\\\EigenvalueTest\\\\a.\
+txt\>\"", ",", "\"\<Table\>\""}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"TableForm", "[", 
+  RowBox[{
+   RowBox[{"HessenbergDecomposition", "[", "mat", "]"}], "[", 
+   RowBox[{"[", "2", "]"}], "]"}], "]"}]}], "Input",
+ CellChangeTimes->{{3.8002462140793705`*^9, 3.8002462326572504`*^9}, {
+  3.8002464330283384`*^9, 3.800246495867516*^9}, {3.800246845934264*^9, 
+  3.800246857589943*^9}},
+ CellLabel->"In[42]:=",ExpressionUUID->"f6769bda-c1ae-47b9-a0f1-f4ac6e919c7a"],
+
+Cell[BoxData[
+ TagBox[GridBox[{
+    {"1.0066876595`", 
+     RowBox[{"-", "0.01858921496016165`"}], 
+     RowBox[{"-", "3.0613486959467623`*^-19"}], "1.2343031308121184`*^-19", 
+     "2.8312205173568044`*^-19", 
+     RowBox[{"-", "7.920451283461762`*^-19"}], "1.596879777309987`*^-19", 
+     RowBox[{"-", "8.718732454760627`*^-20"}], 
+     RowBox[{"-", "3.014073966896573`*^-19"}]},
+    {
+     RowBox[{"-", "0.018589214960161648`"}], "1.0120687872210896`", 
+     "0.009889662890311356`", 
+     RowBox[{"-", "3.319513714393099`*^-17"}], "8.849673070486878`*^-18", 
+     RowBox[{"-", "1.0394805184400408`*^-16"}], 
+     RowBox[{"-", "5.637635610242107`*^-17"}], 
+     RowBox[{"-", "1.2749020841337822`*^-16"}], 
+     RowBox[{"-", "8.886191279156968`*^-18"}]},
+    {"0.`", "0.009889662890311353`", "0.990739823414788`", 
+     "0.01759771277062361`", "8.854359125786295`*^-19", 
+     RowBox[{"-", "1.2437573539122037`*^-16"}], 
+     RowBox[{"-", "1.5961578735566166`*^-17"}], "2.7125685724576368`*^-17", 
+     "3.343564367884019`*^-17"},
+    {"0.`", "0.`", "0.017597712770623615`", "1.0109074200381463`", 
+     "0.01494852403073214`", 
+     RowBox[{"-", "1.0548722726027128`*^-16"}], 
+     RowBox[{"-", "7.233732653442843`*^-17"}], 
+     RowBox[{"-", "2.891364882384525`*^-17"}], 
+     RowBox[{"-", "4.4780756445628134`*^-17"}]},
+    {"0.`", "0.`", "0.`", "0.01494852403073223`", "0.9898174021558226`", 
+     "0.00834910232795612`", 
+     RowBox[{"-", "1.8788354963449935`*^-17"}], 
+     RowBox[{"-", "1.39572493191935`*^-16"}], "3.7675651617743975`*^-17"},
+    {"0.`", "0.`", "0.`", "0.`", "0.008349102327956206`", 
+     "0.9969278668885013`", "0.00672028037483822`", 
+     "2.9782300499583546`*^-17", "8.720569240059242`*^-17"},
+    {"0.`", "0.`", "0.`", "0.`", "0.`", "0.006720280374838354`", 
+     "0.9964391115403664`", 
+     RowBox[{"-", "0.011945677144878666`"}], "0.`"},
+    {"0.`", "0.`", "0.`", "0.`", "0.`", "0.`", 
+     RowBox[{"-", "0.011945677144878668`"}], "0.9952486447229429`", 
+     "0.0006554985622131415`"},
+    {"0.`", "0.`", "0.`", "0.`", "0.`", "0.`", "0.`", 
+     "0.0006554985622134746`", "1.0027568231983397`"}
+   },
+   GridBoxAlignment->{
+    "Columns" -> {{Left}}, "ColumnsIndexed" -> {}, "Rows" -> {{Baseline}}, 
+     "RowsIndexed" -> {}},
+   GridBoxSpacings->{"Columns" -> {
+       Offset[0.27999999999999997`], {
+        Offset[2.0999999999999996`]}, 
+       Offset[0.27999999999999997`]}, "ColumnsIndexed" -> {}, "Rows" -> {
+       Offset[0.2], {
+        Offset[0.4]}, 
+       Offset[0.2]}, "RowsIndexed" -> {}}],
+  Function[BoxForm`e$, 
+   TableForm[BoxForm`e$]]]], "Output",
+ CellChangeTimes->{{3.8002464747049646`*^9, 3.800246496466901*^9}, 
+   3.800246716966319*^9, {3.800246848547921*^9, 3.80024685782294*^9}, 
+   3.8002470415973496`*^9, 3.8002472369869614`*^9, 3.8002476970820627`*^9, {
+   3.800248289741461*^9, 3.800248313888005*^9}, 3.8002484731538906`*^9, {
+   3.8002485174646187`*^9, 3.800248543688262*^9}, 3.8002485794787197`*^9},
+ CellLabel->
+  "Out[43]//TableForm=",ExpressionUUID->"f6ccf88f-1d9f-4819-b699-\
+854ea6bab670"]
+}, Open  ]]
+},
+WindowSize->{1606, 833},
+WindowMargins->{{Automatic, 994}, {544, Automatic}},
+FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (2018\:5e743\:670828\
+\:65e5)",
+StyleDefinitions->"Default.nb"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[558, 20, 152, 3, 35, "Input",ExpressionUUID->"740028d5-1bed-49ef-87f1-513b7ea76d72"],
+Cell[CellGroupData[{
+Cell[735, 27, 644, 14, 100, "Input",ExpressionUUID->"f6769bda-c1ae-47b9-a0f1-f4ac6e919c7a"],
+Cell[1382, 43, 3063, 63, 297, "Output",ExpressionUUID->"f6ccf88f-1d9f-4819-b699-854ea6bab670"]
+}, Open  ]]
+}
+]
+*)
+

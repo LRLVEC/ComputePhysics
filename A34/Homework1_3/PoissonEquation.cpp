@@ -130,9 +130,6 @@ double answer(double x, double y)
 
 int main()
 {
-	std::mt19937 mt(time(nullptr));
-	std::uniform_real_distribution<double> rd(-1.0, 1.0);
-	std::uniform_int_distribution<unsigned long long> rduint(1, 10);
 	Timer timer;
 
 	::printf("Grid<16>:\t");

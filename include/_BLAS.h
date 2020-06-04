@@ -215,15 +215,15 @@ namespace BLAS
 	{
 		double* data;
 		unsigned long long dim;
-		unsigned long long begining;
+		unsigned long long beginning;
 		Type type;
 
-		vec() :data(nullptr), dim(0), begining(0), type(Type::Native) {}
+		vec() :data(nullptr), dim(0), beginning(0), type(Type::Native) {}
 		vec(unsigned long long _length, bool _clear = true)
 			:
 			data(_length ? malloc256d(_length) : nullptr),
 			dim(_length),
-			begining(0),
+			beginning(0),
 			type(Type::Native)
 		{
 			if (_clear && data)memset256d(data, 0, _length);
@@ -232,12 +232,12 @@ namespace BLAS
 			:
 			data(a.dim ? malloc256d(a.dim) : nullptr),
 			dim(a.dim),
-			begining(0),//Native vec must begin with 0
+			beginning(0),//Native vec must begin with 0
 			type(Type::Native)
 		{
-			if (dim)memcpy64d(data, a.data + a.begining, dim);
+			if (dim)memcpy64d(data, a.data + a.beginning, dim);
 		}
-		vec(vec&& a) :data(nullptr), dim(0), begining(0), type(Type::Native)
+		vec(vec&& a) :data(nullptr), dim(0), beginning(0), type(Type::Native)
 		{
 			if (a.type == Type::Native)
 			{
@@ -252,16 +252,17 @@ namespace BLAS
 				{
 					data = malloc256d(a.dim);
 					dim = a.dim;
-					memcpy64d(data, a.data + a.begining, dim);
+					memcpy64d(data, a.data + a.beginning, dim);
 				}
 			}
 		}
 		vec(double* _data, unsigned long long _length, Type _type)//Parasitic or Non32Aligened
-			:data(getPtr256d(_data)), dim(_length), begining(getPtrOffset64d(_data)), type(_type) {}
+			:data(getPtr256d(_data)), dim(_length), beginning(getPtrOffset64d(_data)), type(_type) {}
 		vec(std::initializer_list<double>const& a)
 			:
 			data(a.size() ? malloc256d(a.size()) : nullptr),
 			dim(a.size()),
+			beginning(0),
 			type(Type::Native)
 		{
 			if (dim)memcpy64d(data, a.begin(), dim);
@@ -274,7 +275,7 @@ namespace BLAS
 		}
 		inline double& operator[](unsigned long long a)
 		{
-			return data[a + begining];
+			return data[a + beginning];
 		}
 		void realloc(unsigned long long _dim, bool _clear = true)
 		{
@@ -332,7 +333,7 @@ namespace BLAS
 		//	return a;
 		//}
 
-		//= += -= *= /=
+		//= += -= *= /=, not finished for Non32Aligened (in fact I don't care about this)...
 		vec& operator =(vec&& a)
 		{
 			if (a.dim)
@@ -355,13 +356,13 @@ namespace BLAS
 							data = malloc256d(a.dim);
 							dim = a.dim;
 						}
-						memcpy64d(data, a.data + a.begining, dim);
+						memcpy64d(data, a.data + a.beginning, dim);
 					}
 				}
 				else
 				{
 					unsigned minDim(dim > a.dim ? a.dim : dim);
-					memcpy64d(data, a.data + a.begining, minDim);
+					memcpy64d(data, a.data + a.beginning, minDim);
 				}
 			}
 			else if (type == Type::Native)
@@ -384,12 +385,12 @@ namespace BLAS
 						data = malloc256d(a.dim);
 						dim = a.dim;
 					}
-					memcpy64d(data, a.data + a.begining, dim);
+					memcpy64d(data, a.data + a.beginning, dim);
 				}
 				else
 				{
 					unsigned minDim(dim > a.dim ? a.dim : dim);
-					memcpy64d(data, a.data + a.begining, minDim);
+					memcpy64d(data + beginning, a.data + a.beginning, minDim);
 				}
 			}
 			else if (type == Type::Native)
@@ -405,7 +406,7 @@ namespace BLAS
 			if (a.dim && dim)
 			{
 				unsigned long long minDim(dim > a.dim ? a.dim : dim);
-				for (unsigned long long c0(0); c0 < minDim; ++c0)
+				for (unsigned long long c0(beginning); c0 < beginning + minDim; ++c0)
 					data[c0] += a.data[c0];
 				/*unsigned long long minDim4(minDim >> 2);
 				__m256d* aData((__m256d*)data);
@@ -424,7 +425,7 @@ namespace BLAS
 			if (a.dim && dim)
 			{
 				unsigned long long minDim(dim > a.dim ? a.dim : dim);
-				for (unsigned long long c0(0); c0 < minDim; ++c0)
+				for (unsigned long long c0(beginning); c0 < beginning + minDim; ++c0)
 					data[c0] -= a.data[c0];
 			}
 			return *this;
@@ -434,7 +435,7 @@ namespace BLAS
 			if (a.dim && dim)
 			{
 				unsigned long long minDim(dim > a.dim ? a.dim : dim);
-				for (unsigned long long c0(0); c0 < minDim; ++c0)
+				for (unsigned long long c0(beginning); c0 < beginning + minDim; ++c0)
 					data[c0] *= a.data[c0];
 			}
 			return *this;
@@ -444,7 +445,7 @@ namespace BLAS
 			if (a.dim && dim)
 			{
 				unsigned long long minDim(dim > a.dim ? a.dim : dim);
-				for (unsigned long long c0(0); c0 < minDim; ++c0)
+				for (unsigned long long c0(beginning); c0 < beginning + minDim; ++c0)
 					data[c0] /= a.data[c0];
 			}
 			return *this;
@@ -453,7 +454,7 @@ namespace BLAS
 		{
 			if (dim)
 			{
-				for (unsigned long long c0(0); c0 < dim; ++c0)
+				for (unsigned long long c0(beginning); c0 < beginning + dim; ++c0)
 					data[c0] = a;
 			}
 			return *this;
@@ -462,7 +463,7 @@ namespace BLAS
 		{
 			if (dim)
 			{
-				for (unsigned long long c0(0); c0 < dim; ++c0)
+				for (unsigned long long c0(beginning); c0 < beginning + dim; ++c0)
 					data[c0] += a;
 			}
 			return *this;
@@ -471,7 +472,7 @@ namespace BLAS
 		{
 			if (dim)
 			{
-				for (unsigned long long c0(0); c0 < dim; ++c0)
+				for (unsigned long long c0(beginning); c0 < beginning + dim; ++c0)
 					data[c0] -= a;
 			}
 			return *this;
@@ -480,7 +481,7 @@ namespace BLAS
 		{
 			if (dim)
 			{
-				for (unsigned long long c0(0); c0 < dim; ++c0)
+				for (unsigned long long c0(beginning); c0 < beginning + dim; ++c0)
 					data[c0] *= a;
 			}
 			return *this;
@@ -489,17 +490,43 @@ namespace BLAS
 		{
 			if (dim)
 			{
-				for (unsigned long long c0(0); c0 < dim; ++c0)
+				for (unsigned long long c0(beginning); c0 < beginning + dim; ++c0)
 					data[c0] /= a;
 			}
 			return *this;
 		}
-		//vecA = a * vecB + vecA
+		//negative itself
+		vec& neg()
+		{
+			if (dim)
+			{
+				unsigned long long a(1llu << 63);
+				double g(*(double*)&a);
+				__m256d gg = _mm256_broadcast_sd((double*)&a);
+				unsigned long long finalDim(dim + beginning);
+				unsigned long long dim4(finalDim >> 2);
+				__m256d* aData((__m256d*)data);
+				unsigned long long c0(0);
+				if (beginning)
+				{
+					for (unsigned long long c1(beginning); c1 < finalDim && c1 < 4; ++c1)
+						aData[0].m256d_f64[c1] *= -1;
+					++c0;
+				}
+				for (; c0 < dim4; ++c0)
+					aData[c0] = _mm256_xor_pd(gg, aData[c0]);
+				for (unsigned long long c1(c0 << 2); c1 < finalDim; ++c1)
+					data[c1] *= -1;
+			}
+			return *this;
+		}
+		//vecA = a * vecB + vecA, beginning must be the same
 		vec& fmadd(double a, vec const& b)
 		{
 			if (b.dim && dim)
 			{
 				unsigned long long minDim(dim > b.dim ? b.dim : dim);
+				minDim += beginning;
 				/*for (unsigned long long c0(0); c0 < minDim; ++c0)
 					data[c0] += a * b.data[c0];*/
 				unsigned long long minDim4(minDim >> 2);
@@ -512,6 +539,28 @@ namespace BLAS
 				if ((c0 << 2) < minDim)
 					for (unsigned long long c1(c0 << 2); c1 < minDim; ++c1)
 						data[c1] += a * b.data[c1];
+			}
+			return *this;
+		}
+		//vecA = a * vecB + vecC, beginning must be the same
+		vec& fmadd(double a, vec const& b, vec const& c)
+		{
+			if (b.dim && dim)
+			{
+				unsigned long long minDim(dim > b.dim ? b.dim : dim);
+				minDim = minDim > c.dim ? c.dim : minDim;
+				minDim += beginning;
+				unsigned long long minDim4(minDim >> 2);
+				__m256d* aData((__m256d*)data);
+				__m256d* bData((__m256d*)b.data);
+				__m256d* cData((__m256d*)c.data);
+				unsigned long long c0(0);
+				__m256d tp = _mm256_broadcast_sd(&a);
+				for (; c0 < minDim4; ++c0)
+					aData[c0] = _mm256_fmadd_pd(tp, bData[c0], cData[c0]);
+				if ((c0 << 2) < minDim)
+					for (unsigned long long c1(c0 << 2); c1 < minDim; ++c1)
+						data[c1] = a * b.data[c1] + c.data[c1];
 			}
 			return *this;
 		}
@@ -617,19 +666,19 @@ namespace BLAS
 		{
 			if (a.dim && dim)
 			{
-				unsigned long long e0(dim + begining);
-				unsigned long long e1(a.dim + a.begining);
+				unsigned long long e0(dim + beginning);
+				unsigned long long e1(a.dim + a.beginning);
 				unsigned long long minE(e0 >= e1 ? e1 : e0);
 				double s(0);
 				/*for (unsigned long long c0(0); c0 < minDim; ++c0)
 					s += data[c0] * a.data[c0];*/
-				unsigned long long maxB(begining >= a.begining ? begining : a.begining);
+				unsigned long long maxB(beginning >= a.beginning ? beginning : a.beginning);
 				unsigned long long minDim4(minE >> 2);
 				__m256d* aData((__m256d*)data);
 				__m256d* bData((__m256d*)a.data);
 				unsigned long long c0(0);
 				__m256d tp = { 0 };
-				if (begining)
+				if (beginning)
 				{
 					tp = _mm256_fmadd_pd(aData[c0], bData[c0], tp);
 					for (unsigned long long c1(0); c1 < maxB; ++c1)
@@ -671,15 +720,15 @@ namespace BLAS
 					s += abs(data[c0]);*/
 				unsigned long long a((1llu << 63) - 1llu);
 				__m256d gg = _mm256_broadcast_sd((double*)&a);
-				unsigned long long finalDim(dim + begining);
+				unsigned long long finalDim(dim + beginning);
 				unsigned long long dim4(finalDim >> 2);
 				__m256d* aData((__m256d*)data);
 				unsigned long long c0(0);
 				__m256d tp = { 0 };
-				if (begining)
+				if (beginning)
 				{
 					tp = _mm256_add_pd(tp, _mm256_and_pd(gg, aData[c0++]));
-					for (unsigned long long c1(0); c1 < begining; ++c1)
+					for (unsigned long long c1(0); c1 < beginning; ++c1)
 						tp.m256d_f64[c1] = 0;
 				}
 				for (unsigned long long c1(finalDim); c1 < 4; ++c1)
@@ -699,16 +748,16 @@ namespace BLAS
 			if (dim)
 			{
 				double s(0);
-				unsigned long long finalDim(dim + begining);
+				unsigned long long finalDim(dim + beginning);
 				unsigned long long dim4(finalDim >> 2);
 				__m256d* aData((__m256d*)data);
 				unsigned long long c0(0);
 				__m256d tp = { 0 };
-				if (begining)
+				if (beginning)
 				{
 					__m256d gg = aData[c0++];
 					tp = _mm256_fmadd_pd(gg, gg, tp);
-					for (unsigned long long c1(0); c1 < begining; ++c1)
+					for (unsigned long long c1(0); c1 < beginning; ++c1)
 						tp.m256d_f64[c1] = 0;
 				}
 				for (unsigned long long c1(finalDim); c1 < 4; ++c1)
@@ -742,15 +791,15 @@ namespace BLAS
 				unsigned long long a((1llu << 63) - 1llu);
 				double g(*(double*)&a);
 				__m256d gg = _mm256_broadcast_sd((double*)&a);
-				unsigned long long finalDim(dim + begining);
+				unsigned long long finalDim(dim + beginning);
 				unsigned long long dim4(finalDim >> 2);
 				__m256d* aData((__m256d*)data);
 				unsigned long long c0(0);
 				__m256d tp = { 0 };
-				if (begining)
+				if (beginning)
 				{
 					tp = _mm256_and_pd(gg, aData[c0++]);
-					for (unsigned long long c1(0); c1 < begining; ++c1)
+					for (unsigned long long c1(0); c1 < beginning; ++c1)
 						tp.m256d_f64[c1] = 0;
 				}
 				for (unsigned long long c1(finalDim); c1 < 4; ++c1)
@@ -776,15 +825,15 @@ namespace BLAS
 				double g(*(double*)&a);
 				__m256d gg = _mm256_broadcast_sd((double*)&a);
 				__m256d pp = _mm256_broadcast_sd(&p);
-				unsigned long long finalDim(dim + begining);
+				unsigned long long finalDim(dim + beginning);
 				unsigned long long dim4(finalDim >> 2);
 				__m256d* aData((__m256d*)data);
 				unsigned long long c0(0);
 				__m256d tp = { 0 };
-				if (begining)
+				if (beginning)
 				{
 					tp = _mm256_pow_pd(_mm256_and_pd(gg, aData[c0++]), pp);
-					for (unsigned long long c1(0); c1 < begining; ++c1)
+					for (unsigned long long c1(0); c1 < beginning; ++c1)
 						tp.m256d_f64[c1] = 0;
 				}
 				for (unsigned long long c1(finalDim); c1 < 4; ++c1)
@@ -804,10 +853,10 @@ namespace BLAS
 		void print()const
 		{
 			::printf("[");
-			unsigned long long finalDim(dim + begining);
+			unsigned long long finalDim(dim + beginning);
 			if (dim)
 			{
-				for (unsigned long long c0(begining); c0 < finalDim - 1; ++c0)
+				for (unsigned long long c0(beginning); c0 < finalDim - 1; ++c0)
 					::printf("%.4f, ", data[c0]);
 				::printf("%.4f", data[finalDim - 1]);
 			}
@@ -822,7 +871,7 @@ namespace BLAS
 			case Type::Parasitic:str = "Parastic"; break;
 			case Type::Non32Aligened:str = "Non32Aligened"; break;
 			}
-			::printf("{dim: %u, begining: %u, type: %s}\n", dim, begining, str);
+			::printf("{dim: %u, beginning: %u, type: %s}\n", dim, beginning, str);
 		}
 		void printToTxt(char const* name)const
 		{
@@ -831,8 +880,8 @@ namespace BLAS
 			{
 				FILE* temp(::fopen(name, "w+"));
 				::fprintf(temp, "{");
-				unsigned long long finalDim(dim + begining);
-				for (unsigned long long c0(begining); c0 < finalDim - 1; ++c0)
+				unsigned long long finalDim(dim + beginning);
+				for (unsigned long long c0(beginning); c0 < finalDim - 1; ++c0)
 					::fprintf(temp, "{%.14e}, ", data[c0]);
 				::fprintf(temp, "{%.14e}}\n", data[finalDim - 1]);
 				::fclose(temp);
@@ -844,7 +893,7 @@ namespace BLAS
 			if (data)
 			{
 				FILE* temp(::fopen(name, "w+"));
-				for (unsigned long long c0(begining); c0 < dim + begining; ++c0)
+				for (unsigned long long c0(beginning); c0 < dim + beginning; ++c0)
 					::fprintf(temp, _inRow ? "%.14e " : "%.14e\n", data[c0]);
 				::fclose(temp);
 			}
@@ -852,6 +901,7 @@ namespace BLAS
 	};
 	struct mat
 	{
+		//How to add sub-matrix? Don't try.
 		double* data;
 		union
 		{
@@ -958,6 +1008,7 @@ namespace BLAS
 					data = a.data;
 					width = a.width;
 					height = a.height;
+					width4d = a.width4d;
 					matType = a.matType;
 					a.data = nullptr;
 					a.width = a.height = a.width4d = 0;
@@ -967,9 +1018,9 @@ namespace BLAS
 					data = malloc256d(a.width, a.height);
 					width = a.width;
 					height = a.height;
-					memcpy256d(data, a.data, a.width, a.height);
+					memcpy256d(data, a.data, a.width, a.height);//not done...
+					if (matType < MatType::BandMat)width4d = ceiling4(width);
 				}
-				width4d = ceiling4(width);
 			}
 		}
 		mat(double* _data, unsigned long long _width, unsigned long long _height, Type _type, MatType _matType)
@@ -1685,7 +1736,7 @@ namespace BLAS
 				return b;
 			}
 		}
-		//non-in-situ mult mat
+		//non-in-situ mult mat (only for mat before BandMat)
 		mat operator()(mat const& a)const
 		{
 			unsigned long long minDim(width > a.height ? a.height : width);
@@ -2072,7 +2123,7 @@ namespace BLAS
 						bll.dim -= 4;
 					}
 					double s(data[c1 * width4d + end1] -=
-					(bll, vec(data + c1 * width4d + bgn1, end1 - bgn1, Type::Non32Aligened)));
+						(bll, vec(data + c1 * width4d + bgn1, end1 - bgn1, Type::Non32Aligened)));
 					uM.UBandEleRef(c0, c1) = s * tp[c0];
 				}
 				if (c1 == c0 + halfBandWidth && c1 < minDim)
@@ -2170,6 +2221,76 @@ namespace BLAS
 			}
 			return b;
 		}
+		//normal symmetric matrix diagonalization, input must be a symmetric mat
+		//changes the matrix itself, the result is stored in a band matrix
+		mat symmetricMatDiagonalization()
+		{
+			if (matType < MatType::BandMat && width && width == height)
+			{
+				mat answer(1, width, MatType::BandMat, true);
+				vec v0(width - 1, false);
+				vec p0(width - 1, false);
+				vec w0(width - 1, false);
+				unsigned long long c0(0);
+				for (; c0 < height - 2; ++c0)
+				{
+					vec v(v0.data + c0 + 1, width - c0 - 1, Type::Parasitic);
+					vec x(data + c0 * width4d + c0 + 1, width - c0 - 1, Type::Parasitic);
+					v = x;
+					v[0] = 1;
+					double x1(x[0]);
+					double xn(x.norm2Square());
+					double miu(sqrt(xn));
+					double sigma(xn - x1 * x1);
+					double beta;
+					if (sigma == 0)
+					{
+						if (x1 >= 0)beta = 0;
+						else beta = 2;
+					}
+					else
+					{
+						double v1;
+						if (x1 <= 0)v1 = x1 - miu;
+						else v1 = -sigma / (x1 + miu);
+						beta = 2 * v1 * v1 / (sigma + v1 * v1);
+						v[0] = v1;
+						v /= v1;
+					}
+					vec p(p0.data + c0 + 1, width - c0 - 1, Type::Parasitic);
+					vec w(w0.data + c0 + 1, width - c0 - 1, Type::Parasitic);
+					for (unsigned long long c1(0); c1 < p.dim; ++c1)
+					{
+						vec dp(data + (c0 + c1 + 1) * width4d + c0 + 1, width - c0 - 1, Type::Parasitic);
+						p[c1] = (dp, v);
+					}
+					p *= beta;
+					double pv(-beta * (p, v) / 2);
+					w.fmadd(pv, v, p);
+					answer.BandEleRef(c0, c0) = data[c0 * width4d + c0];
+					answer.BandEleRef(c0, c0 + 1) = miu;
+					answer.BandEleRef(c0 + 1, c0) = miu;
+					for (unsigned long long c1(c0 + 1); c1 < width - 1; ++c1)
+					{
+						vec a(data + c1 * width4d + c1, width - c0 - 1, Type::Parasitic);
+						vec wa(w0.data + c1, width - c1, Type::Parasitic);
+						vec va(v0.data + c1, width - c1, Type::Parasitic);
+						a.fmadd(-va[0], wa);
+						a.fmadd(-wa[0], va);
+					}
+					for (unsigned long long c1(c0 + 2); c1 < width; ++c1)
+						for (unsigned long long c2(c0 + 1); c2 < c1; ++c2)
+							data[c1 * width4d + c2] = data[c2 * width4d + c1];
+					(*this)(width - 1, width - 1) -= 2 * w0[width - 1] * v0[width - 1];
+				}
+				answer.BandEleRef(c0, c0) = data[c0 * width4d + c0];
+				answer.BandEleRef(c0 + 1, c0) = answer.BandEleRef(c0, c0 + 1) = data[c0 * width4d + c0 + 1];
+				++c0;
+				answer.BandEleRef(c0, c0) = data[c0 * width4d + c0];
+				return answer;
+			}
+			return mat();
+		}
 
 		void print()const
 		{
@@ -2178,12 +2299,12 @@ namespace BLAS
 			{
 				for (unsigned long long c0(0); c0 < height; ++c0)
 				{
-					::printf("\t[%4.2f", data[width4d * c0]);
+					::printf("\t[%4.6f", data[width4d * c0]);
 					unsigned long long ed(width);
 					if (matType >= MatType::BandMat && matType < MatType::SparseMat)
 						ed = width4d;
 					for (unsigned long long c1(1); c1 < ed; ++c1)
-						::printf(", %4.2f", data[width4d * c0 + c1]);
+						::printf(", %4.6f", data[width4d * c0 + c1]);
 					::printf("]\n");
 				}
 			}
@@ -2271,7 +2392,7 @@ namespace BLAS
 				for (unsigned long long c0(0); c0 < height; ++c0)
 				{
 					for (unsigned long long c1(0); c1 < width; ++c1)
-						::fprintf(temp, "%4.2f ", data[width4d * c0 + c1]);
+						::fprintf(temp, "%.10e ", data[width4d * c0 + c1]);
 					::fprintf(temp, "\n");
 				}
 			}
@@ -2283,16 +2404,16 @@ namespace BLAS
 		vec re;
 		vec im;
 		unsigned long long dim;
-		unsigned long long begining;
+		unsigned long long beginning;
 		Type type;
 
-		vecCplx() :re(), im(), dim(0), begining(0), type(Type::Native) {}
+		vecCplx() :re(), im(), dim(0), beginning(0), type(Type::Native) {}
 		vecCplx(unsigned long long _length, bool _clear = true)
 			:
 			re(_length, _clear),
 			im(_length, _clear),
 			dim(_length),
-			begining(0),
+			beginning(0),
 			type(Type::Native)
 		{
 		}
@@ -2301,11 +2422,11 @@ namespace BLAS
 			re(a.re),
 			im(a.im),
 			dim(a.dim),
-			begining(0),
+			beginning(0),
 			type(Type::Native)
 		{
 		}
-		vecCplx(vecCplx&& a) :re((vec&&)a.re), im((vec&&)a.im), dim(a.dim), begining(0), type(Type::Native)
+		vecCplx(vecCplx&& a) :re((vec&&)a.re), im((vec&&)a.im), dim(a.dim), beginning(0), type(Type::Native)
 		{
 		}
 		vecCplx(double* _re, double* _im, unsigned long long _length, Type _type)//Parasitic or Non32Aligened
@@ -2313,7 +2434,7 @@ namespace BLAS
 			re(_re, _length, _type),
 			im(_im, _length, _type),
 			dim(re.dim),
-			begining(re.begining),
+			beginning(re.beginning),
 			type(_type)
 		{
 		}
@@ -2558,11 +2679,11 @@ namespace BLAS
 		{
 			if (a.dim && dim)
 			{
-				unsigned long long e0(dim + begining);
-				unsigned long long e1(a.dim + a.begining);
+				unsigned long long e0(dim + beginning);
+				unsigned long long e1(a.dim + a.beginning);
 				unsigned long long minE(e0 >= e1 ? e1 : e0);
 				double sRe(0), sIm(0);
-				unsigned long long maxB(begining >= a.begining ? begining : a.begining);
+				unsigned long long maxB(beginning >= a.beginning ? beginning : a.beginning);
 				unsigned long long minDim4(minE >> 2);
 				__m256d* aRe((__m256d*)re.data);
 				__m256d* aIm((__m256d*)im.data);
@@ -2571,7 +2692,7 @@ namespace BLAS
 				unsigned long long c0(0);
 				__m256d tpRe = { 0 };
 				__m256d tpIm = { 0 };
-				if (begining)
+				if (beginning)
 				{
 					__m256d a1 = aRe[c0];
 					__m256d a2 = aIm[c0];
@@ -2623,11 +2744,11 @@ namespace BLAS
 		{
 			if (a.dim && dim)
 			{
-				unsigned long long e0(dim + begining);
-				unsigned long long e1(a.dim + a.begining);
+				unsigned long long e0(dim + beginning);
+				unsigned long long e1(a.dim + a.beginning);
 				unsigned long long minE(e0 >= e1 ? e1 : e0);
 				double sRe(0), sIm(0);
-				unsigned long long maxB(begining >= a.begining ? begining : a.begining);
+				unsigned long long maxB(beginning >= a.beginning ? beginning : a.beginning);
 				unsigned long long minDim4(minE >> 2);
 				__m256d* aRe((__m256d*)re.data);
 				__m256d* aIm((__m256d*)im.data);
@@ -2636,7 +2757,7 @@ namespace BLAS
 				unsigned long long c0(0);
 				__m256d tpRe = { 0 };
 				__m256d tpIm = { 0 };
-				if (begining)
+				if (beginning)
 				{
 					__m256d a1 = aRe[c0];
 					__m256d a2 = aIm[c0];
@@ -2689,7 +2810,7 @@ namespace BLAS
 		{
 			if (dim)
 			{
-				unsigned long long e0(dim + begining);
+				unsigned long long e0(dim + beginning);
 				double sRe(0), sIm(0);
 				unsigned long long minDim4(e0 >> 2);
 				__m256d* aRe((__m256d*)re.data);
@@ -2697,7 +2818,7 @@ namespace BLAS
 				unsigned long long c0(0);
 				__m256d tpRe = { 0 };
 				__m256d tpIm = { 0 };
-				if (begining)
+				if (beginning)
 				{
 					__m256d a1 = aRe[c0];
 					__m256d a2 = aIm[c0];
@@ -2707,7 +2828,7 @@ namespace BLAS
 					tpIm = _mm256_add_pd(tpIm, tp);
 					tpIm = _mm256_add_pd(tpIm, tp);
 					tpRe = _mm256_fnmadd_pd(a2, a2, tpRe);
-					for (unsigned long long c1(0); c1 < begining; ++c1)
+					for (unsigned long long c1(0); c1 < beginning; ++c1)
 						tpRe.m256d_f64[c1] = tpIm.m256d_f64[c1] = 0;
 					++c0;
 				}
@@ -2748,20 +2869,20 @@ namespace BLAS
 		{
 			if (dim)
 			{
-				unsigned long long e0(dim + begining);
+				unsigned long long e0(dim + beginning);
 				double sRe(0);
 				unsigned long long minDim4(e0 >> 2);
 				__m256d* aRe((__m256d*)re.data);
 				__m256d* aIm((__m256d*)im.data);
 				unsigned long long c0(0);
 				__m256d tpRe = { 0 };
-				if (begining)
+				if (beginning)
 				{
 					__m256d a1 = aRe[c0];
 					__m256d a2 = aIm[c0];
 					tpRe = _mm256_fmadd_pd(a1, a1, tpRe);
 					tpRe = _mm256_fmadd_pd(a2, a2, tpRe);
-					for (unsigned long long c1(0); c1 < begining; ++c1)
+					for (unsigned long long c1(0); c1 < beginning; ++c1)
 						tpRe.m256d_f64[c1] = 0;
 					++c0;
 				}
@@ -2792,10 +2913,10 @@ namespace BLAS
 		void print()const
 		{
 			::printf("[");
-			unsigned long long finalDim(dim + begining);
+			unsigned long long finalDim(dim + beginning);
 			if (dim)
 			{
-				for (unsigned long long c0(begining); c0 < finalDim - 1; ++c0)
+				for (unsigned long long c0(beginning); c0 < finalDim - 1; ++c0)
 					::printf("{%.4f, %.4f}, ", re.data[c0], im.data[c0]);
 				::printf("{%.4f, %.4f}", re.data[finalDim - 1], im.data[finalDim - 1]);
 			}
@@ -2830,25 +2951,25 @@ namespace BLAS
 		{
 			vec tp(re.getLBandRow(a));
 			vec ts(im.getLBandRow(a));
-			return vecCplx(tp.data + tp.begining, ts.data + ts.begining, tp.dim, tp.type);
+			return vecCplx(tp.data + tp.beginning, ts.data + ts.beginning, tp.dim, tp.type);
 		}
 		inline vecCplx const getUBandRow(unsigned long long a)const
 		{
 			vec tp(re.getUBandRow(a));
 			vec ts(im.getUBandRow(a));
-			return vecCplx(tp.data + tp.begining, ts.data + ts.begining, tp.dim, tp.type);
+			return vecCplx(tp.data + tp.beginning, ts.data + ts.beginning, tp.dim, tp.type);
 		}
 		inline vecCplx const getLBandRowL(unsigned long long a)const
 		{
 			vec tp(re.getLBandRowL(a));
 			vec ts(im.getLBandRowL(a));
-			return vecCplx(tp.data + tp.begining, ts.data + ts.begining, tp.dim, tp.type);
+			return vecCplx(tp.data + tp.beginning, ts.data + ts.beginning, tp.dim, tp.type);
 		}
 		inline vecCplx const getUBandRowU(unsigned long long a)const
 		{
 			vec tp(re.getUBandRowU(a));
 			vec ts(im.getUBandRowU(a));
-			return vecCplx(tp.data + tp.begining, ts.data + ts.begining, tp.dim, tp.type);
+			return vecCplx(tp.data + tp.beginning, ts.data + ts.beginning, tp.dim, tp.type);
 		}
 
 		void clear()
