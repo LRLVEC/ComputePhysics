@@ -552,6 +552,53 @@ namespace BLAS
 			}
 			return *this;
 		}
+		//abs
+		vec& abs()
+		{
+			if (dim)
+			{
+				unsigned long long a((1llu << 63) - 1llu);
+				double g(*(double*)&a);
+				__m256d gg = _mm256_broadcast_sd((double*)&a);
+				unsigned long long finalDim(dim + beginning);
+				unsigned long long dim4(finalDim >> 2);
+				__m256d* aData((__m256d*)data);
+				unsigned long long c0(0);
+				if (beginning)
+				{
+					for (unsigned long long c1(beginning); c1 < finalDim && c1 < 4; ++c1)
+						data[c1] = ::abs(data[c1]);
+					++c0;
+				}
+				for (; c0 < dim4; ++c0)
+					aData[c0] = _mm256_and_pd(gg, aData[c0]);
+				for (unsigned long long c1(c0 << 2); c1 < finalDim; ++c1)
+					data[c1] = ::abs(data[c1]);
+			}
+			return *this;
+		}
+		//sqrt, for negetive, return sqrt(-a)
+		vec& sqrt()
+		{
+			if (dim)
+			{
+				unsigned long long finalDim(dim + beginning);
+				unsigned long long dim4(finalDim >> 2);
+				__m256d* aData((__m256d*)data);
+				unsigned long long c0(0);
+				if (beginning)
+				{
+					for (unsigned long long c1(beginning); c1 < finalDim && c1 < 4; ++c1)
+						data[c1] = ::sqrt(data[c1]);
+					++c0;
+				}
+				for (; c0 < dim4; ++c0)
+					aData[c0] = _mm256_sqrt_pd(aData[c0]);
+				for (unsigned long long c1(c0 << 2); c1 < finalDim; ++c1)
+					data[c1] = ::sqrt(data[c1]);
+			}
+			return *this;
+		}
 		//vecA = a * vecB + vecA, beginning must be the same
 		vec& fmadd(double a, vec const& b)
 		{
@@ -749,7 +796,7 @@ namespace BLAS
 			{
 				double s(0);
 				/*for (unsigned long long c0(0); c0 < dim; ++c0)
-					s += abs(data[c0]);*/
+					s += ::abs(data[c0]);*/
 				unsigned long long a((1llu << 63) - 1llu);
 				__m256d gg = _mm256_broadcast_sd((double*)&a);
 				unsigned long long finalDim(dim + beginning);
@@ -770,7 +817,7 @@ namespace BLAS
 				for (unsigned long long c1(0); c1 < 4; ++c1)
 					s += tp.m256d_f64[c1];
 				for (unsigned long long c1(c0 << 2); c1 < finalDim; ++c1)
-					s += abs(data[c1]);
+					s += ::abs(data[c1]);
 				return s;
 			}
 			return 0;
@@ -811,7 +858,7 @@ namespace BLAS
 		}
 		double norm2()const
 		{
-			return sqrt(norm2Square());
+			return ::sqrt(norm2Square());
 		}
 		double normInf()const
 		{
@@ -819,7 +866,7 @@ namespace BLAS
 			{
 				double s(0);
 				/*for (unsigned long long c0(0); c0 < dim; ++c0)
-					if (s < abs(data[c0]))s = abs(data[c0]);*/
+					if (s < ::abs(data[c0]))s = ::abs(data[c0]);*/
 				unsigned long long a((1llu << 63) - 1llu);
 				double g(*(double*)&a);
 				__m256d gg = _mm256_broadcast_sd((double*)&a);
@@ -841,7 +888,7 @@ namespace BLAS
 				for (unsigned long long c1(0); c1 < 4; ++c1)
 					if (s < tp.m256d_f64[c1])s = tp.m256d_f64[c1];
 				for (unsigned long long c1(c0 << 2); c1 < finalDim; ++c1)
-					if (s < abs(data[c1]))s = abs(data[c1]);
+					if (s < ::abs(data[c1]))s = ::abs(data[c1]);
 				return s;
 			}
 			return 0;
@@ -852,7 +899,7 @@ namespace BLAS
 			{
 				double s(0);
 				/*for (unsigned long long c0(0); c0 < dim; ++c0)
-					s += pow(abs(data[c0]), p);*/
+					s += pow(::abs(data[c0]), p);*/
 				unsigned long long a((1llu << 63) - 1llu);
 				double g(*(double*)&a);
 				__m256d gg = _mm256_broadcast_sd((double*)&a);
@@ -876,7 +923,7 @@ namespace BLAS
 				for (unsigned long long c1(0); c1 < 4; ++c1)
 					s += tp.m256d_f64[c1];
 				for (unsigned long long c1(c0 << 2); c1 < finalDim; ++c1)
-					s += pow(abs(data[c1]), p);
+					s += pow(::abs(data[c1]), p);
 				return pow(s, 1 / p);
 			}
 			return 0;
@@ -892,13 +939,13 @@ namespace BLAS
 				{
 					::printf("\n");
 					for (unsigned long long c0(beginning); c0 < finalDim; ++c0)
-						::printf("\t%.8e\n", data[c0]);
+						::printf("\t%.16e\n", data[c0]);
 				}
 				else
 				{
 					for (unsigned long long c0(beginning); c0 < finalDim - 1; ++c0)
-						::printf("%.8e, ", data[c0]);
-					::printf("%.8e", data[finalDim - 1]);
+						::printf("%.16e, ", data[c0]);
+					::printf("%.16e", data[finalDim - 1]);
 				}
 			}
 			::printf("]\n");

@@ -381,12 +381,18 @@ struct Vibration
 	Thomson tms;
 	mat U;
 	vec freqs;
+	vec fn;
+	vec fs2r;
+	unsigned long long fs;
 
 	Vibration(unsigned long long _num, std::uniform_real_distribution<double>& rd, std::mt19937& mt)
 		:
 		tms(_num),
 		U(2 * _num, 2 * _num, false),
-		freqs(2 * _num, false)
+		freqs(2 * _num, false),
+		fn(2 * _num, true),
+		fs2r(2 * _num, true),
+		fs(0)
 	{
 		tms.run(1e-26, rd, mt);
 		getUmat(tms.pos, U);
@@ -519,7 +525,7 @@ struct Vibration
 			}
 		}*/
 	}
-	double check()
+	void check()
 	{
 		vec rij(tms.num * (tms.num - 1) / 2, false);
 		double min(2);
@@ -543,7 +549,7 @@ struct Vibration
 			if (rij[c0] < min)mins[minNum++] = rij[c0];
 		double minAverage(mins.norm1() / mins.dim);
 		mins -= minAverage;
-		return mins.norm2();
+		::printf("Shortest Distances: %lld, %.5e\n", mins.dim, mins.norm2() / mins.dim);
 	}
 	void run()
 	{
@@ -564,7 +570,46 @@ struct Vibration
 		//U.printToTableTxt("E:\\files\\C++\\ComputePhysics\\A34\\Homework1_4\\mat.txt");
 		//must use L^TL
 		mat tridiag(U.tridiagonalizationHouseholder());
-		tridiag.implicitSymmetricQR(1e-40, freqs);
+		vec f(U.width, false);
+		tridiag.implicitSymmetricQR(1e-42, f);
+		fs = 1;
+		freqs[0] = f[0];
+		fn[0] = 1;
+		for (unsigned long long c0(1); c0 < f.dim; ++c0)
+		{
+			unsigned long long c1(0);
+			for (; c1 < fs; ++c1)
+			{
+				if (abs(f[c0] - freqs[c1] / fn[c1]) < 1e-8)
+				{
+					fn[c1]++;
+					freqs[c1] += f[c0];
+					break;
+				}
+			}
+			if (c1 == fs)
+			{
+				freqs[fs] = f[c0];
+				fn[fs++] = 1;
+			}
+		}
+		freqs.dim = fs;
+		fn.dim = fs;
+		fs2r.dim = fs;
+		freqs /= fn;
+		for (unsigned long long c0(0); c0 < f.dim; ++c0)
+			for (unsigned long long c1(0);; c1++)
+			{
+				double dt(f[c0] - freqs[c1]);
+				if (abs(dt) < 1e-8)
+				{
+					fs2r[c1] += dt * dt;
+					break;
+				}
+			}
+		fs2r /= fn;
+		fs2r.sqrt();
+		freqs.abs().sqrt();
 	}
 };
 
@@ -580,16 +625,18 @@ int main()
 	{
 		Thomson tms(c0);
 		tms.run(1e-20, rd, mt);
-		::printf("%llu:\t%.10f\t%.3e\n", c0, tms.answer, tms.answer - tms.answers[c0]);
+		::printf("%llu:\t%.11f\t%.3e\n", c0, tms.answer, tms.answer - tms.answers[c0]);
 	}
 	timer.end();
 	timer.print();*/
 
 	timer.begin();
 	Vibration vbr(12, rd, mt);
+	vbr.check();
 	vbr.run();
 	timer.end();
 	timer.print();
-	::printf("%.5e\n", vbr.check());
 	vbr.freqs.print(true);
+	vbr.fn.print(true);
+	vbr.fs2r.print(true);
 }
