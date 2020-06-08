@@ -369,6 +369,20 @@ int main()
 	//timer.end();
 	//timer.print();
 
+	//fuck Intel
+	//::printf("Length: %llu\n", 100000000);
+	//timer.begin();
+	//vec a(100000000, false);
+	//vec b(100000000, false);
+	//randomVec(a, mt, rd);
+	//randomVec(b, mt, rd);
+	//timer.end();
+	//timer.print("Init: ");
+	//timer.begin();
+	//double s((a, b));
+	//timer.end();
+	//timer.print("Dot: ");
+	//::printf("(a, b)=%f\n", s);
 }
 /*matA := Import["D:\\files\\C++\\ComputePhysics\\BLAS\\TestSet\\matA.txt", "Table"];
 vecC := Import["D:\\files\\C++\\ComputePhysics\\BLAS\\TestSet\\vecC.txt", "Table"];

@@ -105,6 +105,38 @@ namespace BLAS
 		return (double*)(unsigned long long(ptr) & -32);
 	}
 
+	void givens(double x, double y, double& c, double& s, double& r)
+	{
+		if (y == 0)
+		{
+			c = copysign(1.0, x);
+			s = 0;
+			r = abs(x);
+		}
+		else if (x == 0)
+		{
+			c = 0;
+			s = copysign(1.0, y);
+			r = abs(y);
+		}
+		else if (abs(x) > abs(y))
+		{
+			double t = y / x;
+			double u = copysign(sqrt(1 + t * t), x);
+			c = 1 / u;
+			s = c * t;
+			r = x * u;
+		}
+		else
+		{
+			double t = x / y;
+			double u = copysign(sqrt(1 + t * t), y);
+			s = 1 / u;
+			c = s * t;
+			r = y * u;
+		}
+	}
+
 	struct mat;
 	struct cplx
 	{
@@ -850,15 +882,24 @@ namespace BLAS
 			return 0;
 		}
 
-		void print()const
+		void print(bool inRow = false)const
 		{
 			::printf("[");
 			unsigned long long finalDim(dim + beginning);
 			if (dim)
 			{
-				for (unsigned long long c0(beginning); c0 < finalDim - 1; ++c0)
-					::printf("%.4f, ", data[c0]);
-				::printf("%.4f", data[finalDim - 1]);
+				if (inRow)
+				{
+					::printf("\n");
+					for (unsigned long long c0(beginning); c0 < finalDim; ++c0)
+						::printf("\t%.8e\n", data[c0]);
+				}
+				else
+				{
+					for (unsigned long long c0(beginning); c0 < finalDim - 1; ++c0)
+						::printf("%.8e, ", data[c0]);
+					::printf("%.8e", data[finalDim - 1]);
+				}
 			}
 			::printf("]\n");
 		}
@@ -2221,9 +2262,10 @@ namespace BLAS
 			}
 			return b;
 		}
-		//normal symmetric matrix diagonalization, input must be a symmetric mat
+		//normal symmetric matrix Householder tridiagonalization, input must be a symmetric mat
 		//changes the matrix itself, the result is stored in a band matrix
-		mat symmetricMatDiagonalization()
+		//this method is not very friendly when some subdiagnoal is very small
+		mat tridiagonalizationHouseholder()
 		{
 			if (matType < MatType::BandMat && width && width == height)
 			{
@@ -2241,6 +2283,13 @@ namespace BLAS
 					double x1(x[0]);
 					double xn(x.norm2Square());
 					double miu(sqrt(xn));
+					/*if (miu < 1e-10)
+					{
+						answer.BandEleRef(c0, c0) = data[c0 * width4d + c0];
+						answer.BandEleRef(c0, c0 + 1) = 0;
+						answer.BandEleRef(c0 + 1, c0) = 0;
+						continue;
+					}*/
 					double sigma(xn - x1 * x1);
 					double beta;
 					if (sigma == 0)
@@ -2284,12 +2333,137 @@ namespace BLAS
 					(*this)(width - 1, width - 1) -= 2 * w0[width - 1] * v0[width - 1];
 				}
 				answer.BandEleRef(c0, c0) = data[c0 * width4d + c0];
-				answer.BandEleRef(c0 + 1, c0) = answer.BandEleRef(c0, c0 + 1) = data[c0 * width4d + c0 + 1];
+				answer.BandEleRef(c0 + 1, c0) = answer.BandEleRef(c0, c0 + 1) = abs(data[c0 * width4d + c0 + 1]);
 				++c0;
 				answer.BandEleRef(c0, c0) = data[c0 * width4d + c0];
 				return answer;
 			}
 			return mat();
+		}
+		//normal symmetric matrix Householder tridiagonalization, input must be a symmetric mat
+		//does not change the matrix itself, the result is stored in a band matrix
+		//does not work now...
+		mat tridiagonalizationLanczos()
+		{
+			if (matType < MatType::BandMat&& width&& width == height)
+			{
+				mat answer(1, width, MatType::BandMat, true);
+				vec r(width, false);
+				vec q(width, true);
+				vec Aq(width, false);
+				vec u(width, false);
+				vec alpha(width, false);
+				vec beta(width, false);
+				double a, b;
+				q[0] = 1;
+				(*this)(q, u);
+				a = (q, u);
+				r.fmadd(-a, q, u);
+				b = r.norm2();
+				unsigned long long c0(0);
+				for (; b > 1e-20; ++c0)
+				{
+					q = r;
+					q /= b;
+					(*this)(q, Aq);
+					alpha[c0 % width] = a = (q, Aq);
+					u.fmadd(-b, q);
+					r.fmadd(-a, q, u);
+					beta[c0 % width] = b = r.norm2();
+					::printf("%f\n", b);
+					if (c0 > 3 * width)break;
+				}
+				c0 += width - 1;
+				answer.BandEleRef(width - 1, width - 1) = a;
+				for (long long c1(width - 2); c1 >= 0; --c1, --c0)
+				{
+					answer.BandEleRef(c1, c1) = alpha[c0 % width];
+					answer.BandEleRef(c1, c1 + 1) = answer.BandEleRef(c1 + 1, c1) = beta[c0 % width];
+				}
+				return answer;
+			}
+			return mat();
+		}
+		//only for diagonal mat
+		vec& implicitSymmetricQR(double eps, vec& r)
+		{
+			vec a(height, false), b(height, false);
+			for (unsigned long long c0(0); c0 < height - 1; ++c0)
+			{
+				a[c0] = BandEle(c0, c0);
+				b[c0] = BandEle(c0, c0 + 1);
+			}
+			a[height - 1] = BandEle(height - 1, height - 1);
+			//a.printToTableTxt("E:\\files\\C++\\ComputePhysics\\A34\\Homework1_4\\a.txt",true);
+			//b.printToTableTxt("E:\\files\\C++\\ComputePhysics\\A34\\Homework1_4\\b.txt",true);
+			unsigned long long p(0), q(height - 1);//the section to run is in [p, q)
+			for (unsigned long long c0(0); c0 < height - 1; ++c0)
+				if (b[c0] * b[c0] < eps * (abs(a[c0] * a[c0 + 1])))
+					b[c0] = 0;
+			while (b[q - 1] == 0)
+				if (q == 0)break; else q--;
+			if (q)
+			{
+				p = q - 1;
+				while (b[p - 1] != 0)
+					if (p == 0)break; else p--;
+			}
+			else { r = a; return r; }
+			unsigned long long cnt(0);
+			for (;;)
+			{
+				if (cnt > 10000)
+				{
+					::printf("QR doesn't converge!\n");
+					break;
+				}
+				for (;;)
+				{
+					if (cnt++ > 5000)break;
+					double tn11(a[q - 1]);
+					double tn1(b[q - 1]);
+					double tn(a[q]);
+					double d((tn11 - tn) / 2);
+					tn1 *= tn1;
+					double sq(sqrt(d * d + tn1));
+					double miu(tn - tn1 / (d + copysign(sq, d)));
+					double x(a[p] - miu), y(b[p]);
+					for (unsigned long long c0(p); c0 < q; ++c0)
+					{
+						double c, s, r;
+						givens(x, y, c, s, r);
+						d = (a[c0 + 1] - a[c0]) * s;
+						double z((2 * c * b[c0] + d) * s);
+						a[c0] += z;
+						a[c0 + 1] -= z;
+						b[c0] = d * c + (c * c - s * s) * b[c0];
+						x = b[c0];
+						if (c0)b[c0 - 1] = r;
+						if (c0 < q - 1)
+						{
+							y = s * b[c0 + 1];
+							b[c0 + 1] *= c;
+						}
+					}
+					if (b[q - 1] * b[q - 1] < eps * (abs(a[q - 1] * a[q])))
+					{
+						b[--q] = 0;
+						break;
+					}
+				}
+				if (q == p)
+				{
+					if (p)
+					{
+						p--;
+						while (b[p - 1] != 0)
+							if (p == 0)break; else p--;
+					}
+					else break;
+				}
+			}
+			r = a;
+			return r;
 		}
 
 		void print()const
@@ -2392,9 +2566,10 @@ namespace BLAS
 				for (unsigned long long c0(0); c0 < height; ++c0)
 				{
 					for (unsigned long long c1(0); c1 < width; ++c1)
-						::fprintf(temp, "%.10e ", data[width4d * c0 + c1]);
+						::fprintf(temp, "%.16e ", data[width4d * c0 + c1]);
 					::fprintf(temp, "\n");
 				}
+				::fclose(temp);
 			}
 		}
 	};

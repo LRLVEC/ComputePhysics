@@ -10,10 +10,28 @@ int main()
 
 	using namespace BLAS;
 
-	mat a(9, 9, false);
-	randomMatSymmetric(a, mt, rd, 0.01);
+	mat a(8, 8, false);
+	randomMatSymmetric(a, mt, rd, 0.5);
 	a.printToTableTxt("E:\\files\\C++\\ComputePhysics\\BLAS\\EigenvalueTest\\a.txt");
 	a.print();
-	mat t(a.symmetricMatDiagonalization());
-	t.print();
+	timer.begin();
+	mat tH(a.tridiagonalizationHouseholder());
+	mat tL(a.tridiagonalizationLanczos());
+	timer.end();
+	timer.print();
+
+	tH.print();
+	tL.print();
+
+	timer.begin();
+	vec lambdasH(8, false);
+	vec lambdasL(8, false);
+	tH.implicitSymmetricQR(1e-20, lambdasH);
+	tL.implicitSymmetricQR(1e-20, lambdasL);
+	timer.end();
+	timer.print();
+	//t.print();
+	lambdasH.print();
+	lambdasL.print();
+	lambdasH.printToTableTxt("E:\\files\\C++\\ComputePhysics\\BLAS\\EigenvalueTest\\b.txt", false);
 }

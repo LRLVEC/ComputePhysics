@@ -5,7 +5,7 @@ using namespace BLAS;
 
 struct Thomson
 {
-	static constexpr double answers[66]
+	static constexpr double answers[101]
 	{
 		0,
 		0,
@@ -71,7 +71,43 @@ struct Thomson
 		1597.941830199,
 		1652.909409898,
 		1708.879681503,
-		1765.802577927
+		1765.802577927,
+		1823.667960264,
+		1882.441525304,
+		1942.122700406,
+		2002.874701749,
+		2064.533483235,
+		2127.100901551,
+		2190.649906425,
+		2255.001190975,
+		2320.633883745,
+		2387.072981838,
+		2454.369689040,
+		2522.674871841,
+		2591.850152354,
+		2662.046474566,
+		2733.248357479,
+		2805.355875981,
+		2878.522829664,
+		2952.569675286,
+		3027.528488921,
+		3103.465124431,
+		3180.361442939,
+		3258.211605713,
+		3337.000750014,
+		3416.720196758,
+		3497.439018625,
+		3579.091222723,
+		3661.713699320,
+		3745.291636241,
+		3829.844338421,
+		3915.309269620,
+		4001.771675565,
+		4089.154010060,
+		4177.533599622,
+		4266.822464156,
+		4357.139163132,
+		4448.350634331,
 	};
 	unsigned long long num;
 	vec pos;
@@ -168,7 +204,7 @@ struct Thomson
 		}
 		::printf("%.5e\n", psi(pos) - 1765.802577927);
 	}
-	double conjugateGradientDavidon()
+	double conjugateGradientDavidon(double eps)//eps is for gNorm^2
 	{
 		vec pos1(num * 2, false);
 		vec postp[2]{ vec(num * 2, false),  vec(num * 2, false) };
@@ -190,7 +226,8 @@ struct Thomson
 		unsigned long long gidx(0);//0: g0, 1: g1, 2: gtp[0], 3: gtp[1]
 		unsigned long long cnt(0);
 		unsigned long long an(0);
-		while (gNorm > 1e-18)
+		bool succeed(true);
+		while (gNorm > eps)
 		{
 			beta = sqrt(gNorm) * 1e-6;
 			if (dg0 > 0 || cnt % (2 * num) == 0)
@@ -312,6 +349,7 @@ struct Thomson
 			{
 				answer[cnt % answer.dim] = psi0;
 				++an;
+				succeed = false;
 				break;
 			}
 			if (gNorm < (num > 20 ? 1e-13 : 1e-16))
@@ -324,28 +362,162 @@ struct Thomson
 		double sm(answer.norm1() / (an < answer.dim ? an : answer.dim));
 		//double delta(sm - answers[num]);
 		//::printf("%llu: %.3e\n", an, delta);
+		//if (succeed)::printf("%llu\t", cnt);
 		return sm;
 	}
-	double run(std::uniform_real_distribution<double>& rd, std::mt19937& mt)
+	double run(double eps, std::uniform_real_distribution<double>& rd, std::mt19937& mt)
 	{
 		do
 		{
 			initPos(rd, mt);
-			answer = conjugateGradientDavidon();
+			answer = conjugateGradientDavidon(eps);
 		} while (abs(answer - answers[num]) > 1e-8);
 		return answer;
 	}
 };
 
-struct Icosahedron
+struct Vibration
 {
 	Thomson tms;
+	mat U;
+	vec freqs;
 
-	Icosahedron(std::uniform_real_distribution<double>& rd, std::mt19937& mt)
+	Vibration(unsigned long long _num, std::uniform_real_distribution<double>& rd, std::mt19937& mt)
 		:
-		tms(12)
+		tms(_num),
+		U(2 * _num, 2 * _num, false),
+		freqs(2 * _num, false)
 	{
-		tms.run(rd, mt);
+		tms.run(1e-26, rd, mt);
+		getUmat(tms.pos, U);
+	}
+	void getUmat(vec const& p, mat& u)//check this...
+	{
+		//make sure that mat is in the right format: p.dim square mat
+		u.clear();
+		for (unsigned long long cy0(1); cy0 < tms.num; ++cy0)
+		{
+			double theta0 = p.data[2 * cy0];
+			double phi0 = p.data[2 * cy0 + 1];
+			double dg;
+			for (unsigned long long cy1(0); cy1 < cy0; ++cy1)
+			{
+				double theta1 = p.data[2 * cy1];
+				double phi1 = p.data[2 * cy1 + 1];
+				double t01(theta0 - theta1);
+				double p01(phi0 - phi1);
+				double s0(sin(theta0)), s1(sin(theta1));
+				double c0(cos(theta0)), c1(cos(theta1));
+				double s0s1(s0 * s1);
+				double st01(sin(t01)), ct01(cos(t01));
+				double sp01(sin(p01)), cp01(cos(p01));
+				double cp01m(1 - cp01);
+				double pt0(s1 * c0 * cp01m + st01);
+				double pt1(s0 * c1 * cp01m - st01);
+				double pp0(s0s1 * sp01);//pp1 = -pp0
+				double ptt00(ct01 - s0s1 * cp01m);//ptt11 = ptt00
+				double ptt01(c0 * c1 * cp01m - ct01);//ptt01 = ptt10
+				double ppp00(cp01 * s0s1);//ppp01 = -ppp00, ppp10 = -ppp00, ppp11 = ppp00
+				double ptp00(c0 * s1 * sp01);//ptp01 = -ptp00
+				double ptp10(c1 * s0 * sp01);//ptp11 = -ptp10
+				double r(2 * (1 - ptt00));
+				double rn52(pow(r, 2.5));
+
+				dg = (3 * pt0 * pt0 - r * ptt00) / rn52;
+				u(2 * cy0, 2 * cy0) += dg;
+
+				dg = (3 * pt1 * pt1 - r * ptt00) / rn52;
+				u(2 * cy1, 2 * cy1) += dg;
+
+				dg = (3 * pt0 * pt1 - r * ptt01) / rn52;
+				u(2 * cy0, 2 * cy1) += dg;
+				u(2 * cy1, 2 * cy0) += dg;
+
+				dg = (3 * pt0 * pp0 - r * ptp00) / rn52;
+				u(2 * cy0, 2 * cy0 + 1) += dg;
+				u(2 * cy0, 2 * cy1 + 1) -= dg;
+				u(2 * cy0 + 1, 2 * cy0) += dg;
+				u(2 * cy1 + 1, 2 * cy0) -= dg;
+
+				dg = (3 * pt1 * pp0 - r * ptp10) / rn52;
+				u(2 * cy1, 2 * cy0 + 1) += dg;
+				u(2 * cy1, 2 * cy1 + 1) -= dg;
+				u(2 * cy0 + 1, 2 * cy1) += dg;
+				u(2 * cy1 + 1, 2 * cy1) -= dg;
+
+				dg = (3 * pp0 * pp0 - r * ppp00) / rn52;
+				u(2 * cy0 + 1, 2 * cy0 + 1) += dg;
+				u(2 * cy0 + 1, 2 * cy1 + 1) -= dg;
+				u(2 * cy1 + 1, 2 * cy0 + 1) -= dg;
+				u(2 * cy1 + 1, 2 * cy1 + 1) += dg;
+			}
+		}
+		/*for (unsigned long long cy0(1); cy0 < tms.num; ++cy0)
+		{
+			constexpr double h = 1e-5;
+			constexpr double rh = 1 / (h * h);
+			constexpr double r4h = 1 / (4 * h * h);
+			double theta0 = p.data[2 * cy0];
+			double phi0 = p.data[2 * cy0 + 1];
+			double theta0p(theta0 + h);
+			double theta0n(theta0 - h);
+			double phi0p(phi0 - h);
+			double phi0n(phi0 - h);
+			double dg;
+			for (unsigned long long cy1(0); cy1 < cy0; ++cy1)
+			{
+				double theta1 = p.data[2 * cy1];
+				double phi1 = p.data[2 * cy1 + 1];
+				double theta1p(theta1 + h);
+				double theta1n(theta1 - h);
+				double phi1p(phi1 - h);
+				double phi1n(phi1 - h);
+				double r0(1 / tms.rij(theta0, phi0, theta1, phi1));
+				double rr[4];
+				rr[0] = 1 / tms.rij(theta0p, phi0, theta1, phi1);
+				rr[1] = 1 / tms.rij(theta0n, phi0, theta1, phi1);
+				dg = rh * (rr[0] + rr[1] - 2 * r0);
+				tst(2 * cy0, 2 * cy0) += dg;
+				tst(2 * cy1, 2 * cy1) += dg;
+
+				rr[0] = 1 / tms.rij(theta0p, phi0, theta1p, phi1);
+				rr[1] = 1 / tms.rij(theta0n, phi0, theta1p, phi1);
+				rr[2] = 1 / tms.rij(theta0p, phi0, theta1n, phi1);
+				rr[3] = 1 / tms.rij(theta0n, phi0, theta1n, phi1);
+				dg = r4h * (rr[0] - rr[1] - rr[2] + rr[3]);
+				tst(2 * cy0, 2 * cy1) += dg;
+				tst(2 * cy1, 2 * cy0) += dg;
+
+				rr[0] = 1 / tms.rij(theta0p, phi0p, theta1, phi1);
+				rr[1] = 1 / tms.rij(theta0n, phi0p, theta1, phi1);
+				rr[2] = 1 / tms.rij(theta0p, phi0n, theta1, phi1);
+				rr[3] = 1 / tms.rij(theta0n, phi0n, theta1, phi1);
+				dg = r4h * (rr[0] - rr[1] - rr[2] + rr[3]);
+				tst(2 * cy0, 2 * cy0 + 1) += dg;
+				tst(2 * cy0, 2 * cy1 + 1) -= dg;
+				tst(2 * cy0 + 1, 2 * cy0) += dg;
+				tst(2 * cy1 + 1, 2 * cy0) -= dg;
+
+				rr[0] = 1 / tms.rij(theta0, phi0p, theta1p, phi1);
+				rr[1] = 1 / tms.rij(theta0, phi0n, theta1p, phi1);
+				rr[2] = 1 / tms.rij(theta0, phi0p, theta1n, phi1);
+				rr[3] = 1 / tms.rij(theta0, phi0n, theta1n, phi1);
+				dg = r4h * (rr[0] - rr[1] - rr[2] + rr[3]);
+				tst(2 * cy1, 2 * cy0 + 1) += dg;
+				tst(2 * cy1, 2 * cy1 + 1) -= dg;
+				tst(2 * cy0 + 1, 2 * cy1) += dg;
+				tst(2 * cy1 + 1, 2 * cy1) -= dg;
+
+				rr[0] = 1 / tms.rij(theta0, phi0p, theta1, phi1);
+				rr[1] = 1 / tms.rij(theta0, phi0n, theta1, phi1);
+				dg = rh * (rr[0] + rr[1] - 2 * r0);
+				tst(2 * cy0 + 1, 2 * cy0 + 1) += dg;
+				tst(2 * cy0 + 1, 2 * cy1 + 1) -= dg;
+				tst(2 * cy1 + 1, 2 * cy0 + 1) -= dg;
+				tst(2 * cy1 + 1, 2 * cy1 + 1) += dg;
+
+			}
+		}*/
 	}
 	double check()
 	{
@@ -373,9 +545,26 @@ struct Icosahedron
 		mins -= minAverage;
 		return mins.norm2();
 	}
-	void ahh()
+	void run()
 	{
-
+		//tms.pos.printToTableTxt("E:\\files\\C++\\ComputePhysics\\A34\\Homework1_4\\pos.txt",true);
+		for (unsigned long long c0(0); c0 < U.height; c0 += 2)
+		{
+			vec tp(U.data + (c0 + 1) * U.width4d, U.width4d, Type::Parasitic);
+			double s(sin(tms.pos[c0]));
+			tp /= s;
+		}
+		for (unsigned long long c0(0); c0 < U.width; c0 += 2)
+		{
+			double s(sin(tms.pos[c0]));
+			for (unsigned long long c1(0); c1 < U.height; ++c1)
+				U(c1, c0 + 1) /= s;
+		}
+		//U.print();
+		//U.printToTableTxt("E:\\files\\C++\\ComputePhysics\\A34\\Homework1_4\\mat.txt");
+		//must use L^TL
+		mat tridiag(U.tridiagonalizationHouseholder());
+		tridiag.implicitSymmetricQR(1e-40, freqs);
 	}
 };
 
@@ -390,12 +579,17 @@ int main()
 	for (unsigned long long c0(2); c0 < 65; ++c0)
 	{
 		Thomson tms(c0);
-		tms.run(rd, mt);
+		tms.run(1e-20, rd, mt);
 		::printf("%llu:\t%.10f\t%.3e\n", c0, tms.answer, tms.answer - tms.answers[c0]);
 	}
 	timer.end();
 	timer.print();*/
 
-	Icosahedron ico(rd, mt);
-	::printf("%.5e\n", ico.check());
+	timer.begin();
+	Vibration vbr(12, rd, mt);
+	vbr.run();
+	timer.end();
+	timer.print();
+	::printf("%.5e\n", vbr.check());
+	vbr.freqs.print(true);
 }
