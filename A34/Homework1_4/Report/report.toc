@@ -1,6 +1,0 @@
-\contentsline {section}{\numberline {1}$V_{min}$}{3}{section.1}% 
-\contentsline {subsection}{\numberline {1.1}计算结果}{3}{subsection.1.1}% 
-\contentsline {subsection}{\numberline {1.2}实现方法}{3}{subsection.1.2}% 
-\contentsline {section}{\numberline {2}简正频率和简并度}{4}{section.2}% 
-\contentsline {subsection}{\numberline {2.1}计算结果}{4}{subsection.2.1}% 
-\contentsline {subsection}{\numberline {2.2}实现方法}{4}{subsection.2.2}% 

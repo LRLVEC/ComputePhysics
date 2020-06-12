@@ -1,0 +1,5 @@
+\contentsline {section}{\numberline {1}计算结果}{3}{section.1}% 
+\contentsline {section}{\numberline {2}数值求解泊松方程}{3}{section.2}% 
+\contentsline {section}{\numberline {3}插值得到高斯点上的值}{3}{section.3}% 
+\contentsline {section}{\numberline {4}网格单元上的高斯积分}{3}{section.4}% 
+\contentsline {section}{\numberline {5}总$L_2$误差$E_{L_2}$}{3}{section.5}% 

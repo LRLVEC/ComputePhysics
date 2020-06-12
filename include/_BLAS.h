@@ -534,7 +534,7 @@ namespace BLAS
 			{
 				unsigned long long a(1llu << 63);
 				double g(*(double*)&a);
-				__m256d gg = _mm256_broadcast_sd((double*)&a);
+				__m256d gg = _mm256_set1_pd(g);
 				unsigned long long finalDim(dim + beginning);
 				unsigned long long dim4(finalDim >> 2);
 				__m256d* aData((__m256d*)data);
@@ -558,8 +558,7 @@ namespace BLAS
 			if (dim)
 			{
 				unsigned long long a((1llu << 63) - 1llu);
-				double g(*(double*)&a);
-				__m256d gg = _mm256_broadcast_sd((double*)&a);
+				__m256d gg = _mm256_set1_pd(*(double*)&a);
 				unsigned long long finalDim(dim + beginning);
 				unsigned long long dim4(finalDim >> 2);
 				__m256d* aData((__m256d*)data);
@@ -599,6 +598,223 @@ namespace BLAS
 			}
 			return *this;
 		}
+		//qsort avx2 Increment (not faster in fact...)
+		vec& qsortAVX()
+		{
+			if (dim > 256)
+			{
+				vec va(dim, false);
+				vec vb(dim, false);
+				double k(data[beginning]);
+				__m256d* datam256((__m256d*)data);
+				__m256d* vam256((__m256d*)va.data);
+				__m256d* vbm256((__m256d*)vb.data);
+				__m256d cmp, rst;
+				__m128i id_l, id_geq;
+				unsigned long long na(0), nb(0);
+				int n_l(0), n_geq(0);
+				cmp = _mm256_set1_pd(k);
+				unsigned long long ending(beginning + dim);
+				unsigned long long m(beginning), n(ending >> 2);
+				if (m)
+				{
+					for (int c0(beginning + 1); c0 < 4; c0++)
+						if (data[c0] < k)id_l.m128i_i32[n_l++] = c0;
+						else id_geq.m128i_i32[n_geq++] = c0;
+					m = 1;
+				}
+				for (; m < n;)
+				{
+					rst = _mm256_cmp_pd(datam256[m], cmp, 1);
+					unsigned long long im(m++ << 2);
+					for (int c0(0); c0 < 4; c0++)
+					{
+						if (n_l == 4)
+						{
+							n_l = 0;
+							vam256[na++] = _mm256_i32gather_pd(data, id_l, 8);
+						}
+						if (n_geq == 4)
+						{
+							n_geq = 0;
+							vbm256[nb++] = _mm256_i32gather_pd(data, id_geq, 8);
+						}
+						if (rst.m256d_f64[c0] == 0)id_geq.m128i_i32[n_geq++] = c0 + im;
+						else id_l.m128i_i32[n_l++] = c0 + im;
+					}
+				}
+				if ((m <<= 2) < ending)
+				{
+					for (int c0(m); c0 < ending; c0++)
+					{
+						if (n_l == 4)
+						{
+							n_l = 0;
+							vam256[na++] = _mm256_i32gather_pd(data, id_l, 8);
+						}
+						if (n_geq == 4)
+						{
+							n_geq = 0;
+							vbm256[nb++] = _mm256_i32gather_pd(data, id_geq, 8);
+						}
+						if (data[c0] < k)id_l.m128i_i32[n_l++] = c0;
+						else id_geq.m128i_i32[n_geq++] = c0;
+					}
+				}
+				if (n_l)
+				{
+					if (n_l == 4)vam256[na] = _mm256_i32gather_pd(data, id_l, 8);
+					else
+						for (unsigned long long c0(0); c0 < n_l; ++c0)
+							va.data[na * 4 + c0] = data[id_l.m128i_i32[c0]];
+				}
+				if (n_geq)
+				{
+					if (n_geq == 4)vbm256[nb] = _mm256_i32gather_pd(data, id_geq, 8);
+					else
+						for (unsigned long long c0(0); c0 < n_geq; ++c0)
+							vb.data[nb * 4 + c0] = data[id_geq.m128i_i32[c0]];
+				}
+				na = na * 4 + n_l;
+				nb = nb * 4 + n_geq;
+				unsigned long long middle(beginning + na);
+				memcpy64d(data + beginning, va.data, na);
+				data[middle] = k;
+				memcpy64d(data + middle + 1, vb.data, nb);
+				if (na > 256)_qsort_avx(beginning, middle, va, vb);
+				else if (na > 1)qsort(beginning, middle);
+				if (nb > 256)_qsort_avx(middle + 1, ending, va, vb);
+				else if (nb > 1)qsort(middle + 1, ending);
+			}
+			else if (dim > 1)
+				qsort(beginning, beginning + dim);
+			return *this;
+		}
+		vec& _qsort_avx(unsigned long long p, unsigned long long q, vec& va, vec& vb)
+		{
+			if (q - p > 256)
+			{
+				double* odata(data + ((p >> 2) << 2));
+				unsigned long long ending(q - ((p >> 2) << 2));
+				double k(odata[p & 3]);
+				__m256d* datam256((__m256d*)odata);
+				__m256d* vam256((__m256d*)va.data);
+				__m256d* vbm256((__m256d*)vb.data);
+				__m256d cmp, rst;
+				__m128i id_l, id_geq;
+				unsigned long long na(0), nb(0);
+				int n_l(0), n_geq(0);
+				cmp = _mm256_set1_pd(k);
+				unsigned long long m(p & 3), n(ending >> 2);
+				if (m)
+				{
+					for (int c0(m + 1); c0 < 4; c0++)
+						if (odata[c0] < k)id_l.m128i_i32[n_l++] = c0;
+						else id_geq.m128i_i32[n_geq++] = c0;
+					m = 1;
+				}
+				for (; m < n;)
+				{
+					rst = _mm256_cmp_pd(datam256[m], cmp, 1);
+					unsigned long long im(m++ << 2);
+					for (int c0(0); c0 < 4; c0++)
+					{
+						if (n_l == 4)
+						{
+							n_l = 0;
+							vam256[na++] = _mm256_i32gather_pd(odata, id_l, 8);
+						}
+						if (n_geq == 4)
+						{
+							n_geq = 0;
+							vbm256[nb++] = _mm256_i32gather_pd(odata, id_geq, 8);
+						}
+						if (rst.m256d_f64[c0] == 0)id_geq.m128i_i32[n_geq++] = c0 + im;
+						else id_l.m128i_i32[n_l++] = c0 + im;
+					}
+				}
+				if ((m <<= 2) < ending)
+				{
+					for (int c0(m); c0 < ending; c0++)
+					{
+						if (n_l == 4)
+						{
+							n_l = 0;
+							vam256[na++] = _mm256_i32gather_pd(odata, id_l, 8);
+						}
+						if (n_geq == 4)
+						{
+							n_geq = 0;
+							vbm256[nb++] = _mm256_i32gather_pd(odata, id_geq, 8);
+						}
+						if (odata[c0] < k)id_l.m128i_i32[n_l++] = c0;
+						else id_geq.m128i_i32[n_geq++] = c0;
+					}
+				}
+				if (n_l)
+				{
+					if (n_l == 4)vam256[na] = _mm256_i32gather_pd(odata, id_l, 8);
+					else
+						for (unsigned long long c0(0); c0 < n_l; ++c0)
+							va.data[na * 4 + c0] = odata[id_l.m128i_i32[c0]];
+				}
+				if (n_geq)
+				{
+					if (n_geq == 4)vbm256[nb] = _mm256_i32gather_pd(odata, id_geq, 8);
+					else
+						for (unsigned long long c0(0); c0 < n_geq; ++c0)
+							vb.data[nb * 4 + c0] = odata[id_geq.m128i_i32[c0]];
+				}
+				na = na * 4 + n_l;
+				nb = nb * 4 + n_geq;
+				unsigned long long middle(p + na);
+				memcpy64d(data + p, va.data, na);
+				data[middle] = k;
+				memcpy64d(data + middle + 1, vb.data, nb);
+				if (na > 256)_qsort_avx(p, middle, va, vb);
+				else if (na > 1) qsort(p, middle);
+				if (nb > 256)_qsort_avx(middle + 1, q, va, vb);
+				else if (nb > 1)qsort(middle + 1, q);
+			}
+			else if (q - p > 1)
+				qsort(p, q);
+			return *this;
+		}
+		vec& qsort()
+		{
+			qsort(beginning, beginning + dim);
+			return *this;
+		}
+		vec& qsort(unsigned long long p, unsigned long long q)
+		{
+			if (p + 1 < q)
+			{
+				double& const k(data[p]);
+				unsigned long long m(p + 1), n(p);
+				while (++n != q)
+					if (data[n] < k) { double t = data[m]; data[m++] = data[n]; data[n] = t; }
+				double t = data[m - 1]; data[m - 1] = data[p]; data[p] = t;
+				if (p + 2 < m)qsort(p, m - 1);
+				if (m + 1 < n)qsort(m, n);
+			}
+			return *this;
+		}
+		//qsort Diminishing
+		/*vec& qsortD(unsigned long long p = 0, unsigned long long q = 0)
+		{
+			if (p + 1 < q)
+			{
+				double* a(data + beginning);
+				double& const k(a[p]);
+				unsigned long long m(p + 1), n(p);
+				while (++n != q)
+					if (a[n] > k) { double t = a[m]; a[m++] = a[n]; a[n] = t; }
+				double t = a[m - 1]; a[m - 1] = a[p]; a[p] = t;
+				if (p + 2 < m)qsortD(p, m - 1);
+				if (m + 1 < n)qsortD(m, n);
+			}
+			return *this;
+		}*/
 		//vecA = a * vecB + vecA, beginning must be the same
 		vec& fmadd(double a, vec const& b)
 		{
@@ -612,7 +828,7 @@ namespace BLAS
 				__m256d* aData((__m256d*)data);
 				__m256d* bData((__m256d*)b.data);
 				unsigned long long c0(0);
-				__m256d tp = _mm256_broadcast_sd(&a);
+				__m256d tp = _mm256_set1_pd(a);
 				for (; c0 < minDim4; ++c0)
 					aData[c0] = _mm256_fmadd_pd(tp, bData[c0], aData[c0]);
 				if ((c0 << 2) < minDim)
@@ -634,7 +850,7 @@ namespace BLAS
 				__m256d* bData((__m256d*)b.data);
 				__m256d* cData((__m256d*)c.data);
 				unsigned long long c0(0);
-				__m256d tp = _mm256_broadcast_sd(&a);
+				__m256d tp = _mm256_set1_pd(a);
 				for (; c0 < minDim4; ++c0)
 					aData[c0] = _mm256_fmadd_pd(tp, bData[c0], cData[c0]);
 				if ((c0 << 2) < minDim)
@@ -798,7 +1014,7 @@ namespace BLAS
 				/*for (unsigned long long c0(0); c0 < dim; ++c0)
 					s += ::abs(data[c0]);*/
 				unsigned long long a((1llu << 63) - 1llu);
-				__m256d gg = _mm256_broadcast_sd((double*)&a);
+				__m256d gg = _mm256_set1_pd(*(double*)&a);
 				unsigned long long finalDim(dim + beginning);
 				unsigned long long dim4(finalDim >> 2);
 				__m256d* aData((__m256d*)data);
@@ -869,7 +1085,7 @@ namespace BLAS
 					if (s < ::abs(data[c0]))s = ::abs(data[c0]);*/
 				unsigned long long a((1llu << 63) - 1llu);
 				double g(*(double*)&a);
-				__m256d gg = _mm256_broadcast_sd((double*)&a);
+				__m256d gg = _mm256_set1_pd(*(double*)&a);
 				unsigned long long finalDim(dim + beginning);
 				unsigned long long dim4(finalDim >> 2);
 				__m256d* aData((__m256d*)data);
@@ -902,8 +1118,8 @@ namespace BLAS
 					s += pow(::abs(data[c0]), p);*/
 				unsigned long long a((1llu << 63) - 1llu);
 				double g(*(double*)&a);
-				__m256d gg = _mm256_broadcast_sd((double*)&a);
-				__m256d pp = _mm256_broadcast_sd(&p);
+				__m256d gg = _mm256_set1_pd(*(double*)&a);
+				__m256d pp = _mm256_set1_pd(p);
 				unsigned long long finalDim(dim + beginning);
 				unsigned long long dim4(finalDim >> 2);
 				__m256d* aData((__m256d*)data);
@@ -937,15 +1153,15 @@ namespace BLAS
 			{
 				if (inRow)
 				{
-					::printf("\n");
-					for (unsigned long long c0(beginning); c0 < finalDim; ++c0)
-						::printf("\t%.16e\n", data[c0]);
-				}
-				else
-				{
 					for (unsigned long long c0(beginning); c0 < finalDim - 1; ++c0)
 						::printf("%.16e, ", data[c0]);
 					::printf("%.16e", data[finalDim - 1]);
+				}
+				else
+				{
+					::printf("\n");
+					for (unsigned long long c0(beginning); c0 < finalDim; ++c0)
+						::printf("\t%.16e\n", data[c0]);
 				}
 			}
 			::printf("]\n");
@@ -1872,8 +2088,8 @@ namespace BLAS
 						for (unsigned long long c2(0); c2 < minDim; ++c2)
 						{
 							//__m256d t = _mm256_i32gather_pd(tempData, offset, 8);
-							__m256d tp0 = _mm256_broadcast_sd(source->data + c0 * width4d + c2);
-							__m256d tp1 = _mm256_broadcast_sd(source->data + (c0 + 1) * width4d + c2);
+							__m256d tp0 = _mm256_set1_pd(source->data[+c0 * width4d + c2]);
+							__m256d tp1 = _mm256_set1_pd(source->data[(c0 + 1) * width4d + c2]);
 #pragma unroll(4)
 							for (unsigned long long c3(0); c3 < warp; ++c3)
 							{
@@ -1895,8 +2111,8 @@ namespace BLAS
 						__m256d ans1[warp] = { 0 };
 						for (unsigned long long c2(0); c2 < minDim; ++c2)
 						{
-							__m256d tp0 = _mm256_broadcast_sd(source->data + c0 * width4d + c2);
-							__m256d tp1 = _mm256_broadcast_sd(source->data + (c0 + 1) * width4d + c2);
+							__m256d tp0 = _mm256_set1_pd(source->data[c0 * width4d + c2]);
+							__m256d tp1 = _mm256_set1_pd(source->data[(c0 + 1) * width4d + c2]);
 							for (unsigned long long c3(0); c3 < warpLeft; ++c3)
 							{
 								__m256d b = aData[aWidth256d * c2 + c1 + c3];
@@ -1919,7 +2135,7 @@ namespace BLAS
 						__m256d ans0[warp] = { 0 };
 						for (unsigned long long c2(0); c2 < minDim; ++c2)
 						{
-							__m256d tp0 = _mm256_broadcast_sd(source->data + c0 * width4d + c2);
+							__m256d tp0 = _mm256_set1_pd(source->data[c0 * width4d + c2]);
 #pragma unroll(4)
 							for (unsigned long long c3(0); c3 < warp; ++c3)
 							{
@@ -1936,7 +2152,7 @@ namespace BLAS
 						__m256d ans0[warp] = { 0 };
 						for (unsigned long long c2(0); c2 < minDim; ++c2)
 						{
-							__m256d tp0 = _mm256_broadcast_sd(source->data + c0 * width4d + c2);
+							__m256d tp0 = _mm256_set1_pd(source->data[c0 * width4d + c2]);
 							for (unsigned long long c3(0); c3 < warpLeft; ++c3)
 							{
 								__m256d b = aData[aWidth256d * c2 + c1 + c3];
@@ -2445,7 +2661,7 @@ namespace BLAS
 			//b.printToTableTxt("E:\\files\\C++\\ComputePhysics\\A34\\Homework1_4\\b.txt",true);
 			unsigned long long p(0), q(height - 1);//the section to run is in [p, q)
 			for (unsigned long long c0(0); c0 < height - 1; ++c0)
-				if (b[c0] * b[c0] < eps * (abs(a[c0] * a[c0 + 1])))
+				if (b[c0] * b[c0] <= eps * (abs(a[c0] * a[c0 + 1])))
 					b[c0] = 0;
 			while (b[q - 1] == 0)
 				if (q == 0)break; else q--;
@@ -2492,7 +2708,7 @@ namespace BLAS
 							b[c0 + 1] *= c;
 						}
 					}
-					if (b[q - 1] * b[q - 1] < eps * (abs(a[q - 1] * a[q])))
+					if (b[q - 1] * b[q - 1] <= eps * (abs(a[q - 1] * a[q])))
 					{
 						b[--q] = 0;
 						break;
@@ -2829,8 +3045,8 @@ namespace BLAS
 				unsigned long long minDim4(dim >> 2);
 				__m256d* aRe((__m256d*)re.data);
 				__m256d* aIm((__m256d*)im.data);
-				__m256d b1 = _mm256_broadcast_sd(&a.re);
-				__m256d b2 = _mm256_broadcast_sd(&a.im);
+				__m256d b1 = _mm256_set1_pd(a.re);
+				__m256d b2 = _mm256_set1_pd(a.im);
 				unsigned long long c0(0);
 				for (; c0 < minDim4; ++c0)
 				{
@@ -2873,8 +3089,8 @@ namespace BLAS
 				__m256d* aIm((__m256d*)im.data);
 				__m256d* bRe((__m256d*)b.re.data);
 				__m256d* bIm((__m256d*)b.im.data);
-				__m256d c1 = _mm256_broadcast_sd(&a.re);
-				__m256d c2 = _mm256_broadcast_sd(&a.im);
+				__m256d c1 = _mm256_set1_pd(a.re);
+				__m256d c2 = _mm256_set1_pd(a.im);
 				unsigned long long c0(0);
 				for (; c0 < minDim4; ++c0)
 				{
@@ -4061,10 +4277,10 @@ namespace BLAS
 				__m256d tp[4];
 				for (; c1 < minDim4Floor; c1 += 4)
 				{
-					tp[0] = _mm256_broadcast_sd(source->data + c1);
-					tp[1] = _mm256_broadcast_sd(source->data + c1 + 1);
-					tp[2] = _mm256_broadcast_sd(source->data + c1 + 2);
-					tp[3] = _mm256_broadcast_sd(source->data + c1 + 3);
+					tp[0] = _mm256_set1_pd(source->data[c1]);
+					tp[1] = _mm256_set1_pd(source->data[c1 + 1]);
+					tp[2] = _mm256_set1_pd(source->data[c1 + 2]);
+					tp[3] = _mm256_set1_pd(source->data[c1 + 3]);
 					__m256d* s(aData + width4 * c1 + c0);
 #pragma unroll(4)
 					for (unsigned long long c2(0); c2 < 4; ++c2)
@@ -4103,10 +4319,10 @@ namespace BLAS
 				__m256d tp[4];
 				for (; c1 < minDim4Floor; c1 += 4)
 				{
-					tp[0] = _mm256_broadcast_sd(source->data + c1);
-					tp[1] = _mm256_broadcast_sd(source->data + c1 + 1);
-					tp[2] = _mm256_broadcast_sd(source->data + c1 + 2);
-					tp[3] = _mm256_broadcast_sd(source->data + c1 + 3);
+					tp[0] = _mm256_set1_pd(source->data[c1]);
+					tp[1] = _mm256_set1_pd(source->data[c1 + 1]);
+					tp[2] = _mm256_set1_pd(source->data[c1 + 2]);
+					tp[3] = _mm256_set1_pd(source->data[c1 + 3]);
 					__m256d* s(aData + width4 * c1 + c0);
 #pragma unroll(4)
 					for (unsigned long long c2(0); c2 < 4; ++c2)
@@ -4144,7 +4360,7 @@ namespace BLAS
 	//misc
 	template<class T>void randomVec(vec& a, std::mt19937& mt, T& rd)
 	{
-		for (unsigned long long c0(0); c0 < a.dim; ++c0)
+		for (unsigned long long c0(a.beginning); c0 < a.beginning + a.dim; ++c0)
 			a.data[c0] = rd(mt);
 	}
 	template<class T>void randomVecCplx(vecCplx& a, std::mt19937& mt, T& rd)

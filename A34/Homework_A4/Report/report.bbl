@@ -1,0 +1,20 @@
+\begin{thebibliography}{1}
+
+\bibitem{Lakhbab2014Energy}
+Halima Lakhbab, Souad~El Bernoussi, and Abderrahmane~El Harif.
+\newblock Energy minimization of point charges on a sphere with a hybrid
+  approach.
+\newblock {\em American Journal of Clinical Nutrition}, 95(4):916--924, 2014.
+
+\bibitem{WikipediaThomsonProblem}
+Thomson problem.
+\newblock \url{https://en.wikipedia.org/wiki/Thomson_problem} Accessed May 30,
+  2020.
+
+\bibitem{Hager2005A}
+William~W. Hager and Hongchao Zhang.
+\newblock A new conjugate gradient method with guaranteed descent and an
+  efficient line search.
+\newblock {\em Siam Journal on Optimization}, 16(1):170--192, 2005.
+
+\end{thebibliography}
