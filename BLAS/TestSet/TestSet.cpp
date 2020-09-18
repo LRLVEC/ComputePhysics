@@ -358,16 +358,16 @@ int main()
 	//vecE.printToTableTxt("./vecD.txt", false);
 	//vecE.printToTableTxt("./vecE.txt");
 
-	//// 3950x avx2 test
-	//mat mA(1024, 1024, false);
-	//mat mB(1024, 1024, false);
-	//mat mC(1024, 1024, false);
-	//randomMat(mA, mt, rd);
-	//randomMat(mB, mt, rd);
-	//timer.begin();
-	//mA(mB, mC);
-	//timer.end();
-	//timer.print();
+	// 3950x avx2 test
+	mat mA(1024, 1024, false);
+	mat mB(1024, 1024, false);
+	mat mC(1024, 1024, false);
+	randomMat(mA, mt, rd);
+	randomMat(mB, mt, rd);
+	timer.begin();
+	mA(mB, mC);
+	timer.end();
+	timer.print();
 
 	//fuck Intel
 	//::printf("Length: %llu\n", 100000000);

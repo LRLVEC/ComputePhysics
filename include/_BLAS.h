@@ -8,7 +8,7 @@
 #include <immintrin.h>
 #include <random>
 
-//if you can change it, than change it
+//if you can change it, then change it
 namespace BLAS
 {
 	static constexpr double Pi = 3.14159265358979323846264338327950288L;
@@ -576,6 +576,82 @@ namespace BLAS
 			}
 			return *this;
 		}
+		//sum
+		double sum()
+		{
+			if (dim)
+			{
+				double s(0);
+				unsigned long long finalDim(dim + beginning);
+				unsigned long long dim4(finalDim >> 2);
+				__m256d* aData((__m256d*)data);
+				unsigned long long c0(0);
+				__m256d tp = { 0 };
+				if (beginning)
+				{
+					tp = _mm256_add_pd(tp, aData[c0++]);
+					for (unsigned long long c1(0); c1 < beginning; ++c1)
+						tp.m256d_f64[c1] = 0;
+				}
+				for (unsigned long long c1(finalDim); c1 < 4; ++c1)
+					tp.m256d_f64[c1] = 0;
+				for (; c0 < dim4; ++c0)
+					tp = _mm256_add_pd(tp, aData[c0]);
+				for (unsigned long long c1(0); c1 < 4; ++c1)
+					s += tp.m256d_f64[c1];
+				for (unsigned long long c1(c0 << 2); c1 < finalDim; ++c1)
+					s += data[c1];
+				return s;
+			}
+			return 0;
+		}
+		//average
+		double average()
+		{
+			if (dim)return sum() / dim;
+			return 0;
+		}
+		//variance
+		double variance()
+		{
+			if (dim)
+			{
+				double avg(average());
+				double s(0);
+				unsigned long long finalDim(dim + beginning);
+				unsigned long long dim4(finalDim >> 2);
+				__m256d avgm(_mm256_set1_pd(avg));
+				__m256d sqr;
+				__m256d* aData((__m256d*)data);
+				unsigned long long c0(0);
+				__m256d tp = { 0 };
+				if (beginning)
+				{
+					sqr = _mm256_min_pd(aData[c0++], avgm);
+					sqr = _mm256_mul_pd(sqr, sqr);
+					tp = _mm256_add_pd(tp, sqr);
+					for (unsigned long long c1(0); c1 < beginning; ++c1)
+						tp.m256d_f64[c1] = 0;
+				}
+				for (unsigned long long c1(finalDim); c1 < 4; ++c1)
+					tp.m256d_f64[c1] = 0;
+				for (; c0 < dim4; ++c0)
+				{
+					sqr = _mm256_min_pd(aData[c0], avgm);
+					sqr = _mm256_mul_pd(sqr, sqr);
+					tp = _mm256_add_pd(tp, sqr);
+				}
+				for (unsigned long long c1(0); c1 < 4; ++c1)
+					s += tp.m256d_f64[c1];
+				for (unsigned long long c1(c0 << 2); c1 < finalDim; ++c1)
+				{
+					double ss(data[c1] - avg);
+					s += ss * ss;
+				}
+				return s;
+			}
+			return 0;
+		}
 		//sqrt, for negetive, return sqrt(-a)
 		vec& sqrt()
 		{
@@ -799,6 +875,25 @@ namespace BLAS
 			}
 			return *this;
 		}
+		vec& qsortD()
+		{
+			qsortD(beginning, beginning + dim);
+			return *this;
+		}
+		vec& qsortD(unsigned long long p, unsigned long long q)
+		{
+			if (p + 1 < q)
+			{
+				double& const k(data[p]);
+				unsigned long long m(p + 1), n(p);
+				while (++n != q)
+					if (data[n] > k) { double t = data[m]; data[m++] = data[n]; data[n] = t; }
+				double t = data[m - 1]; data[m - 1] = data[p]; data[p] = t;
+				if (p + 2 < m)qsortD(p, m - 1);
+				if (m + 1 < n)qsortD(m, n);
+			}
+			return *this;
+		}
 		//qsort Diminishing
 		/*vec& qsortD(unsigned long long p = 0, unsigned long long q = 0)
 		{
@@ -998,7 +1093,7 @@ namespace BLAS
 		vec& normalize()
 		{
 			double s(this->norm2());
-			if (s)(*this) *= 1 / s;
+			if (s)(*this) /= s;
 			return *this;
 		}
 		//non-in-situ mult mat
@@ -1379,6 +1474,10 @@ namespace BLAS
 		inline double& operator() (unsigned long long a, unsigned long long b)
 		{
 			return data[unsigned long long(a) * width4d + b];
+		}
+		inline vec row(unsigned long long a)
+		{
+			return vec(data + a * width4d, width, Type::Parasitic);
 		}
 		inline double  BandEle(unsigned long long a, unsigned long long b)const
 		{
@@ -2388,6 +2487,37 @@ namespace BLAS
 			solveL(a, tp);
 			solveUid(tp, b);
 		}
+		//Cholesky only (no solving)
+		void solveCholesky()
+		{
+			//only use L mat since it's a symmetric matrix...
+			if (!height)return;
+			double s(1 / data[0]);
+			vec tp(height, false);
+			vec tp1(height, false);
+			tp[0] = s;
+			for (unsigned long long c0(1); c0 < height; ++c0)
+				data[c0] = data[c0 * width4d] * s;
+			for (unsigned long long c0(1); c0 < height; ++c0)
+			{
+				vec tll(data + c0 * width4d, c0, Type::Parasitic);
+				vec bll(tp1.data, c0, Type::Parasitic);
+				bll = tll; bll *= tp;
+				tp[c0] = 1 / (data[c0 * width4d + c0] -= (bll, tll));
+				for (unsigned long long c1(c0 + 1); c1 < height; ++c1)
+				{
+					double s(data[c1 * width4d + c0] -= (bll, vec(data + c1 * width4d, c0, Type::Parasitic)));
+					data[c0 * width4d + c1] = s * tp[c0];
+				}
+			}
+		}
+		//Cholesky is already done
+		vec& solveCholeskyAlread(vec const& a, vec& b, vec& temp)
+		{
+			solveL(a, temp);
+			solveUid(temp, b);
+			return b;
+		}
 		//symmetric band (for LBandMat)
 		vec& solveCholeskyBand(vec const& a, vec& b)
 		{
@@ -2727,6 +2857,95 @@ namespace BLAS
 			}
 			r = a;
 			return r;
+		}
+		//
+		mat& inversePowerEigenvectors(vec const& eigenvalues, mat& eigenvectors)
+		{
+			if (width && eigenvalues.dim)
+			{
+				mat ts(width, height, false);
+				vec y(width, true);
+				for (unsigned long long c0(0); c0 < eigenvalues.dim; ++c0)
+				{
+					double lbd(eigenvalues.data[c0]), lbd1(lbd + 1e-5);
+					vec x(eigenvectors.data + c0 * width4d, width, Type::Parasitic);
+					x = 0;
+					x[0] = 1;
+					ts = *this;
+					for (unsigned long long c1(0); c1 < width; ++c1)
+						ts(c1, c1) -= lbd;
+					ts.solveCholesky();
+					unsigned long long cnt(0);
+					while (abs(lbd - lbd1) > 1e-11)
+					{
+						ts.solveCholeskyAlread(x, x, y);
+						x.normalize();
+						//x.print(true);
+						(*this)(x, y);
+						lbd1 = (x, y);
+						//::printf("%.3e\n", lbd1 - lbd);
+						if (cnt++ > 10)break;
+					}
+				}
+			}
+			return eigenvectors;
+		}
+		vec& powerMaxEigenvector(vec& eigenvector)
+		{
+			if (width)
+			{
+				vec tp[2]{ vec(width, false) ,vec(width, false) };
+				tp[0] = 0;
+				tp[0][0] = 1;
+				bool idx(0);
+				double a(1), b(2);
+				unsigned long long cnt(0);
+				while (abs(a - b) > 1e-12)
+				{
+					(*this)(tp[idx], tp[!idx]);
+					b = a;
+					a = (tp[idx], tp[!idx]);
+					tp[idx ^= 1].normalize();
+					if (cnt++ == 200)break;
+				}
+				::printf("cnt: %lld\n", cnt);
+				return eigenvector = tp[!idx];
+			}
+			return eigenvector;
+		}
+		mat& powerEigenvectors(mat& eigenvectors)
+		{
+			if (eigenvectors.width)//eigenvectors.width == height
+			{
+				vec tp[2]{ vec(eigenvectors.width, false) ,vec(eigenvectors.width, false) };
+				for (unsigned long long c0(1); c0 < height; ++c0)
+				{
+					tp[0] = 0;
+					tp[0][0] = 1;
+					bool idx(0);
+					unsigned long long cnt(0);
+					double a(1), b(2);
+					while (abs(a - b) > 1e-12)
+					{
+						(*this)(tp[idx], tp[!idx]);
+						b = a;
+						a = (tp[idx], tp[!idx]);
+						idx ^= 1;
+						for (unsigned long long c1(0); c1 < c0; ++c1)
+						{
+							vec egv(eigenvectors.row(c1));
+							tp[idx].fmadd(-(tp[idx], egv), tp[!idx]);
+						}
+						//::printf("b - a: %f\n", abs(b - a));
+						tp[idx].normalize();
+						if (++cnt == 100)break;
+					}
+					vec egv(eigenvectors.row(c0));
+					egv = tp[idx];
+					::printf("cnt: %lld\n", cnt);
+				}
+			}
+			return eigenvectors;
 		}
 
 		void print()const

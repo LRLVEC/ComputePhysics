@@ -34,9 +34,11 @@ void matMultmat(double* a, double* b, double* c, unsigned int widthA,
 			for (unsigned int c2(0); c2 < minDim; ++c2)
 			{
 				double s = a[c0 * widthA + c2];
-				__m256d tp0 = { s,s,s,s };
+				//__m256d tp0 = { s,s,s,s };
+				__m256d tp0(_mm256_set1_pd(s));
 				s = a[(c0 + 1) * widthA + c2];
-				__m256d tp1 = { s,s,s,s };
+				//__m256d tp1 = { s,s,s,s };
+				__m256d tp1(_mm256_set1_pd(s));
 #pragma unroll(4)
 				for (unsigned int c3(0); c3 < warp; ++c3)
 				{
@@ -102,15 +104,14 @@ int main()
 {
 	std::mt19937 mt(time(nullptr));
 	std::uniform_real_distribution<double> rd(0, 2);
-	unsigned int l(1024 * 1024);
-	double* vecA((double*)_mm_malloc(1024 * sizeof(double), 32));
-	double* vecB((double*)_mm_malloc(1024 * sizeof(double), 32));
+	unsigned int l(1024 * 1024 + 1);
+	double* vecA((double*)_mm_malloc(1025 * sizeof(double), 32));
+	double* vecB((double*)_mm_malloc(1025 * sizeof(double), 32));
 	double* matA((double*)_mm_malloc(l * sizeof(double), 32));
 	double* matB((double*)_mm_malloc(l * sizeof(double), 32));
 	double* matC((double*)_mm_malloc(l * sizeof(double), 32));
 
 	Timer timer;
-
 
 	randomIt(vecA, 1024, mt, rd);
 	//randomIt(vecB, 1024, mt, rd);
@@ -122,17 +123,48 @@ int main()
 	//auto t2 = std::chrono::system_clock::now();
 	//::printf("%d us\n", std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
 
-	//timer.begin();
-	//matMultmat(matA, matB, matC, 1024, 1024, 1024, 1024);
-	//timer.end();
-	//timer.print("AVX2:");
+	timer.begin();
+	for (unsigned int c0(0); c0 < 100; ++c0)
+		matMultvec(matA, vecA, vecB, 1024, 1024, 1024);
+	timer.end();
+	timer.print("mat mult vec (AVX2) aligned: ");
+
+	timer.begin();
+	for (unsigned int c0(0); c0 < 10; ++c0)
+		matMultmat(matA, matB, matC, 1024, 1024, 1024, 1024);
+	timer.end();
+	timer.print("mat mult mat (AVX2) aligned: ");
+
+	bool unaligned(true);
+	if (unaligned)
+	{
+		vecA++;
+		vecB++;
+		matA++;
+		matB++;
+		matC++;
+	}
 
 	timer.begin();
 	for (unsigned int c0(0); c0 < 100; ++c0)
 		matMultvec(matA, vecA, vecB, 1024, 1024, 1024);
 	timer.end();
-	timer.print("mat mult vec (AVX2): ");
+	timer.print("mat mult vec (AVX2) non-aligned: ");
 
+	timer.begin();
+	for (unsigned int c0(0); c0 < 10; ++c0)
+		matMultmat(matA, matB, matC, 1024, 1024, 1024, 1024);
+	timer.end();
+	timer.print("mat mult mat (AVX2) non-aligned: ");
+
+	if (unaligned)
+	{
+		vecA--;
+		vecB--;
+		matA--;
+		matB--;
+		matC--;
+	}
 	::_mm_free(vecA);
 	::_mm_free(vecB);
 	::_mm_free(matA);
