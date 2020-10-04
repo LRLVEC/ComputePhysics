@@ -244,9 +244,9 @@ int main()
 	Timer timer;
 	using namespace BLAS;
 	// 3950x avx2 multi thread test
-	mat mA(1024, 1024, false);
-	mat mB(1024, 1024, false);
-	mat mC(1024, 1024, false);
+	mat mA(4096, 4096, false);
+	mat mB(4096, 4096, false);
+	mat mC(4096, 4096, false);
 	randomMat(mA, mt, rd);
 	randomMat(mB, mt, rd);
 
@@ -261,7 +261,7 @@ int main()
 		matMultMT(mA, mB, mC);
 	timer.end();
 	timer.print("Multi Thread: ");
-	mA.printToTableTxt("./matA.txt");
-	mB.printToTableTxt("./matB.txt");
-	mC.printToTableTxt("./matC.txt");
+	//mA.printToTableTxt("./matA.txt");
+	//mB.printToTableTxt("./matB.txt");
+	//mC.printToTableTxt("./matC.txt");
 }
