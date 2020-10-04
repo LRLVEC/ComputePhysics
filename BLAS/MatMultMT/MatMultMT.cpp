@@ -1,16 +1,26 @@
 #include <_BLAS.h>
 #include <_Time.h>
 #include <random>
+#ifdef _WIN32
 #include <Windows.h>
 #include <process.h>
+#else
+#include <pthread.h>
+#include <sys/sysinfo.h>
+#endif
 
 BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 {
 	using namespace BLAS;
 
+	unsigned long long threadNum;
+#ifdef _WIN32
 	SYSTEM_INFO systemInfo;
 	GetSystemInfo(&systemInfo);
-	unsigned long long threadNum(systemInfo.dwNumberOfProcessors);
+	threadNum = systemInfo.dwNumberOfProcessors;
+#else
+	threadNum = get_nprocs_conf();
+#endif
 	::printf("Number of processors: %llu\n", threadNum);
 
 	unsigned long long minDim(ts.width > a.height ? a.height : ts.width);
@@ -43,7 +53,11 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 		//     minDim
 		//     aWidth256d
 		//     warpLeft
-		void(*lambda)(void*) = [](void* ptr)
+#ifdef _WIN32
+		void (*lambda)(void*) = [](void* ptr)
+#else
+		void* (*lambda)(void*) = [](void* ptr)->void*
+#endif
 		{
 			void** ptrs((void**)ptr);
 			double* source = ((double*)ptrs[0]);
@@ -55,8 +69,6 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 			unsigned long long minDim((unsigned long long)ptrs[6]);
 			unsigned long long aWidth256d((unsigned long long)ptrs[7]);
 			unsigned long long warpLeft((unsigned long long)ptrs[8]);
-
-
 
 			constexpr unsigned long long warp = 16;
 			for (; source < sourceEnding; source += width4d * 2, bData += aWidth256d * 2)
@@ -108,16 +120,27 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 					}
 				}
 			}
+#ifndef _WIN32
+			return 0;
+#endif
 		};
 
 		unsigned long long threadHeight((ts.height / threadNum) & (-2));
 		unsigned long long rowBeginning;
+#ifdef _WIN32
 		HANDLE* threads(nullptr);
+#else
+		pthread_t* threads(nullptr);
+#endif
 		void** paras(nullptr);
 		if (threadHeight)
 		{
 			rowBeginning = threadHeight * (threadNum - 1);
+#ifdef _WIN32
 			threads = (HANDLE*)::malloc((threadNum - 1) * sizeof(HANDLE));
+#else
+			threads = (pthread_t*)::malloc((threadNum - 1) * sizeof(pthread_t));
+#endif
 			paras = (void**)::malloc((threadNum - 1) * 9 * sizeof(void*));
 
 			for (unsigned long long c0(0); c0 < threadNum - 1; ++c0)
@@ -132,7 +155,12 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 				paras[c0 * 9 + 7] = (void*)(aWidth256d);
 				paras[c0 * 9 + 8] = (void*)(warpLeft);
 
+#ifdef _WIN32
 				threads[c0] = (HANDLE)_beginthread(lambda, 0, paras + c0 * 9);
+#else
+				pthread_create(threads + c0, 0, lambda, paras + c0 * 9);
+				pthread_detach(threads[c0]);
+#endif
 			}
 		}
 		else rowBeginning = 0;
@@ -225,9 +253,14 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 		}
 		if (threadHeight)
 		{
+#ifdef _WIN32
 			WaitForMultipleObjects(threadNum - 1, threads, true, INFINITE);
 			for (unsigned long long c0(0); c0 < threadNum - 1; ++c0)
 				CloseHandle(threads[c0]);
+#else
+			for (unsigned long long c0(0);c0 < threadNum - 1;++c0)
+				pthread_join(threads[c0], nullptr);
+#endif
 			::free(threads);
 			::free(paras);
 		}
