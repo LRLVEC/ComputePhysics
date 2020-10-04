@@ -277,9 +277,9 @@ int main()
 	Timer timer;
 	using namespace BLAS;
 	// 3950x avx2 multi thread test
-	mat mA(4096, 4096, false);
-	mat mB(4096, 4096, false);
-	mat mC(4096, 4096, false);
+	mat mA(1024, 1024, false);
+	mat mB(1024, 1024, false);
+	mat mC(1024, 1024, false);
 	randomMat(mA, mt, rd);
 	randomMat(mB, mt, rd);
 
