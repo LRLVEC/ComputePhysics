@@ -1,5 +1,10 @@
 project(MatMultMT)
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+	set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/../bin/Debug)
+else()
+	set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/../bin/Release)
+endif()
 # set(CMAKE_THREAD_PREFER_PTHREAD ON)
 # set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads)
