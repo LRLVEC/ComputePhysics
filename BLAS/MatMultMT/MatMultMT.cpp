@@ -294,7 +294,7 @@ int main()
 		matMultMT(mA, mB, mC);
 	timer.end();
 	timer.print("Multi Thread: ");
-	mA.printToTableTxt("./matA.txt");
-	mB.printToTableTxt("./matB.txt");
-	mC.printToTableTxt("./matC.txt");
+	//mA.printToTableTxt("./matA.txt");
+	//mB.printToTableTxt("./matB.txt");
+	//mC.printToTableTxt("./matC.txt");
 }
