@@ -35,14 +35,14 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 			source = &r;
 			r = ts;
 		}
-		if (overflow)b.reconstruct(a.width, ts.height, false);
+		if (overflow)b.reconstruct(a.width, source->height, false);
 		__m256d* aData((__m256d*)a.data);
 		__m256d* bData((__m256d*)b.data);
 		constexpr unsigned long long warp = 16;
 		unsigned long long aWidth256d(a.width4d / 4);
-		unsigned long long aWidthWarpFloor(aWidth256d / warp * warp);
+		unsigned long long aWidthWarpFloor((aWidth256d / warp) * warp);
 		unsigned long long warpLeft(aWidth256d - aWidthWarpFloor);
-		unsigned long long height2Floor(ts.height & (-2));
+		unsigned long long height2Floor(source->height & (-2));
 
 		//ptr: A beginning
 		//     A ending
@@ -80,7 +80,6 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 					__m256d ans1[warp] = { 0 };
 					for (unsigned long long c2(0); c2 < minDim; ++c2)
 					{
-						//__m256d t = _mm256_i32gather_pd(tempData, offset, 8);
 						__m256d tp0 = _mm256_set1_pd(source[c2]);
 						__m256d tp1 = _mm256_set1_pd(source[width4d + c2]);
 #pragma unroll(4)
@@ -125,7 +124,7 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 #endif
 		};
 
-		unsigned long long threadHeight((ts.height / threadNum) & (-2));
+		unsigned long long threadHeight((source->height / threadNum) & (-2));
 		unsigned long long rowBeginning;
 #ifdef _WIN32
 		HANDLE* threads(nullptr);
@@ -145,15 +144,15 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 
 			for (unsigned long long c0(0); c0 < threadNum - 1; ++c0)
 			{
-				paras[c0 * 9] = (void*)(source->data + threadHeight * ts.width4d * c0);
-				paras[c0 * 9 + 1] = (void*)(source->data + threadHeight * ts.width4d * (c0 + 1));
-				paras[c0 * 9 + 2] = (void*)(a.data);
-				paras[c0 * 9 + 3] = (void*)(b.data + threadHeight * a.width4d * c0);
-				paras[c0 * 9 + 4] = (void*)(ts.width4d);
-				paras[c0 * 9 + 5] = (void*)(aWidthWarpFloor);
-				paras[c0 * 9 + 6] = (void*)(minDim);
-				paras[c0 * 9 + 7] = (void*)(aWidth256d);
-				paras[c0 * 9 + 8] = (void*)(warpLeft);
+				paras[c0 * 9] = (void*)(source->data + threadHeight * source->width4d * c0);			//A beginning
+				paras[c0 * 9 + 1] = (void*)(source->data + threadHeight * source->width4d * (c0 + 1));	//A ending
+				paras[c0 * 9 + 2] = (void*)(a.data);													//B
+				paras[c0 * 9 + 3] = (void*)(b.data + threadHeight * a.width4d * c0);					//C beginning
+				paras[c0 * 9 + 4] = (void*)(source->width4d);											//width4d
+				paras[c0 * 9 + 5] = (void*)(aWidthWarpFloor);											//aWidthWarpFloor
+				paras[c0 * 9 + 6] = (void*)(minDim);													//minDim
+				paras[c0 * 9 + 7] = (void*)(aWidth256d);												//aWidth256d
+				paras[c0 * 9 + 8] = (void*)(warpLeft);													//warpLeft
 
 #ifdef _WIN32
 				threads[c0] = (HANDLE)_beginthread(lambda, 0, paras + c0 * 9);
@@ -165,8 +164,12 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 		}
 		else rowBeginning = 0;
 
-		unsigned long long c0(rowBeginning);
-		for (; c0 < height2Floor; c0 += 2)
+		double* sourceBeginning(source->data + rowBeginning * source->width4d);
+		double* sourceEnding(source->data + (source->height & -2) * source->width4d);
+		unsigned long long width4d(source->width4d);
+		bData += rowBeginning * aWidth256d;
+
+		for (; sourceBeginning < sourceEnding; sourceBeginning += width4d * 2, bData += aWidth256d * 2)
 		{
 			unsigned long long c1(0);
 			for (; c1 < aWidthWarpFloor; c1 += warp)
@@ -175,9 +178,8 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 				__m256d ans1[warp] = { 0 };
 				for (unsigned long long c2(0); c2 < minDim; ++c2)
 				{
-					//__m256d t = _mm256_i32gather_pd(tempData, offset, 8);
-					__m256d tp0 = _mm256_set1_pd(source->data[c0 * ts.width4d + c2]);
-					__m256d tp1 = _mm256_set1_pd(source->data[(c0 + 1) * ts.width4d + c2]);
+					__m256d tp0 = _mm256_set1_pd(sourceBeginning[c2]);
+					__m256d tp1 = _mm256_set1_pd(sourceBeginning[width4d + c2]);
 #pragma unroll(4)
 					for (unsigned long long c3(0); c3 < warp; ++c3)
 					{
@@ -189,8 +191,8 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 #pragma unroll(4)
 				for (unsigned long long c3(0); c3 < warp; ++c3)
 				{
-					bData[c0 * aWidth256d + c1 + c3] = ans0[c3];
-					bData[(c0 + 1) * aWidth256d + c1 + c3] = ans1[c3];
+					bData[c1 + c3] = ans0[c3];
+					bData[aWidth256d + c1 + c3] = ans1[c3];
 				}
 			}
 			if (c1 < aWidth256d)
@@ -199,8 +201,8 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 				__m256d ans1[warp] = { 0 };
 				for (unsigned long long c2(0); c2 < minDim; ++c2)
 				{
-					__m256d tp0 = _mm256_set1_pd(source->data[c0 * ts.width4d + c2]);
-					__m256d tp1 = _mm256_set1_pd(source->data[(c0 + 1) * ts.width4d + c2]);
+					__m256d tp0 = _mm256_set1_pd(sourceBeginning[c2]);
+					__m256d tp1 = _mm256_set1_pd(sourceBeginning[width4d + c2]);
 					for (unsigned long long c3(0); c3 < warpLeft; ++c3)
 					{
 						__m256d b = aData[aWidth256d * c2 + c1 + c3];
@@ -210,12 +212,12 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 				}
 				for (unsigned long long c3(0); c3 < warpLeft; ++c3)
 				{
-					bData[c0 * aWidth256d + c1 + c3] = ans0[c3];
-					bData[(c0 + 1) * aWidth256d + c1 + c3] = ans1[c3];
+					bData[c1 + c3] = ans0[c3];
+					bData[aWidth256d + c1 + c3] = ans1[c3];
 				}
 			}
 		}
-		if (c0 < ts.height)
+		if (source->height & 1)
 		{
 			unsigned long long c1(0);
 			for (; c1 < aWidthWarpFloor; c1 += warp)
@@ -223,7 +225,7 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 				__m256d ans0[warp] = { 0 };
 				for (unsigned long long c2(0); c2 < minDim; ++c2)
 				{
-					__m256d tp0 = _mm256_set1_pd(source->data[c0 * ts.width4d + c2]);
+					__m256d tp0 = _mm256_set1_pd(sourceBeginning[c2]);
 #pragma unroll(4)
 					for (unsigned long long c3(0); c3 < warp; ++c3)
 					{
@@ -233,14 +235,14 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 				}
 #pragma unroll(4)
 				for (unsigned long long c3(0); c3 < warp; ++c3)
-					bData[c0 * aWidth256d + c1 + c3] = ans0[c3];
+					bData[c1 + c3] = ans0[c3];
 			}
 			if (c1 < aWidth256d)
 			{
 				__m256d ans0[warp] = { 0 };
 				for (unsigned long long c2(0); c2 < minDim; ++c2)
 				{
-					__m256d tp0 = _mm256_set1_pd(source->data[c0 * ts.width4d + c2]);
+					__m256d tp0 = _mm256_set1_pd(sourceBeginning[c2]);
 					for (unsigned long long c3(0); c3 < warpLeft; ++c3)
 					{
 						__m256d b = aData[aWidth256d * c2 + c1 + c3];
@@ -248,17 +250,20 @@ BLAS::mat& matMultMT(BLAS::mat const& ts, BLAS::mat const& a, BLAS::mat& b)
 					}
 				}
 				for (unsigned long long c3(0); c3 < warpLeft; ++c3)
-					bData[c0 * aWidth256d + c1 + c3] = ans0[c3];
+					bData[c1 + c3] = ans0[c3];
 			}
 		}
 		if (threadHeight)
 		{
 #ifdef _WIN32
-			WaitForMultipleObjects(threadNum - 1, threads, true, INFINITE);
+			DWORD rc = WaitForMultipleObjects(threadNum - 1, threads, true, INFINITE);
+			int slot = rc - WAIT_OBJECT_0;
+			if (slot >= 0 && slot < threadNum - 1)
+				printf("All thread terminite\n");
 			for (unsigned long long c0(0); c0 < threadNum - 1; ++c0)
 				CloseHandle(threads[c0]);
 #else
-			for (unsigned long long c0(0);c0 < threadNum - 1;++c0)
+			for (unsigned long long c0(0); c0 < threadNum - 1; ++c0)
 				pthread_join(threads[c0], nullptr);
 #endif
 			::free(threads);
@@ -274,6 +279,10 @@ int main()
 	std::uniform_real_distribution<double> rd(-1.0, 1.0);
 	std::uniform_int_distribution<unsigned long long> rduint(1, 10);
 
+	remove("./matA.txt");
+	remove("./matB.txt");
+	remove("./matC.txt");
+
 	Timer timer;
 	using namespace BLAS;
 	// 3950x avx2 multi thread test
@@ -282,11 +291,13 @@ int main()
 	mat mC(1024, 1024, false);
 	randomMat(mA, mt, rd);
 	randomMat(mB, mt, rd);
+	mA.printToTableTxt("./matA.txt");
+	mB.printToTableTxt("./matB.txt");
 
-	timer.begin();
-	mA(mB, mC);
-	timer.end();
-	timer.print("Single Thread: ");
+	//timer.begin();
+	//mA(mB, mC);
+	//timer.end();
+	//timer.print("Single Thread: ");
 
 	timer.begin();
 	for (unsigned long long c0(0); c0 < 1; ++c0)
@@ -294,7 +305,5 @@ int main()
 		matMultMT(mA, mB, mC);
 	timer.end();
 	timer.print("Multi Thread: ");
-	//mA.printToTableTxt("./matA.txt");
-	//mB.printToTableTxt("./matB.txt");
-	//mC.printToTableTxt("./matC.txt");
+	mC.printToTableTxt("./matC.txt");
 }

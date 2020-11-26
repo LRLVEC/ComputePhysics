@@ -345,3 +345,6 @@ build/
 bin/
 .vscode/
 
+matA.txt
+matB.txt
+matC.txt
