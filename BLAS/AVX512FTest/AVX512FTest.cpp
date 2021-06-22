@@ -475,7 +475,7 @@ int main()
 	for (unsigned int c0(0); c0 < 10; ++c0)
 		matMultMT(mA, mB, mC);
 	timer.end();
-	timer.print("Single Thread: ");
+	timer.print("11800H AVX512 Multi Thread: ");
 
 	//mA.printToTableTxt("./matA.txt");
 	//mB.printToTableTxt("./matB.txt");
