@@ -43,7 +43,7 @@ namespace BLAS
 	{
 		return (((length - 1) >> 2) + 1) << 2;
 	}
-	inline unsigned long long floor(unsigned long long length)
+	inline unsigned long long floor4(unsigned long long length)
 	{
 		return (length >> 2) << 2;
 	}
